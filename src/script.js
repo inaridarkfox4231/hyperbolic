@@ -6,6 +6,22 @@
  step3.1: 点を追加するモードと点を削除するモードの切り替えができるようにし、
           点を削除するモードの時はクリックしても点が追加されないようにする。
  step3.2: 点を削除するメソッドを追加する。
+ step4: 線を引く・・点を二つ選んでそれらを結ぶ直線が追加されるようにする。
+        ここは点から線への参照が欲しいところ。もちろん線から点への参照も。
+        重複して直線が登録されないようにする工夫が必要。
+
+ arc関数の復習：(中心のx, 中心のy, 横幅、縦幅、始端角度、終端角度). あとはnoFillにしといてね。
+
+ step4.1: 点をクリックすると赤くなる
+ step4:2: 他の点をクリックすると赤い点とその点を結ぶ直線が追加される。
+ step4.3: 赤い点が固定されてるうちは他の点をクリックするたびに直線が追加される。
+ step4.4: 赤い点をクリックするとキャンセルになり赤い点を選ぶところからやり直し。
+ step4.5: 他のモードに変更すると点が赤いのとかリセットになる。
+ step5: 線を消す・・点と直線の距離の公式（ポアンカレ平面版）を使って消す。その上の点とかは残る。
+        参照も消さないといけない。
+ step6: 線上に点を打つ。直線の上に点を追加するということ。
+ step7: 直線上の点をドラッグドロップで移動できるようにしたい。
+ step8: 点をドラッグドロップして、その点と他の点とを結ぶ直線もいっしょに動くようにしたい。
 */
 let figSet;
 let drawMode = 0;
@@ -40,9 +56,18 @@ function draw(){
 class figureSet{
   constructor(){
     this.points = [];
+    this.lines = [];
+    this.activePointId = -1; // activeになってる点のid.
   }
   addPoint(x, y){
-    this.points.push({x:x, y:y});
+    // (x, y)は位置、activeは赤くなる、connectedLinesは直線のidを入れる。
+    this.points.push({x:x, y:y, active:false, connectedLines:[]});
+  }
+  addLine(cx, cy, sa, ea){
+    // activePointIdとidの間に直線を追加する。中心とangleの範囲の組が追加されることになる予定・・
+    // connectedPointsは接続している点のidを入れる。
+    // centerX, centerY, startAngle, endAngle.
+    this.lines.push({cx:cx, cy:cy, sa:sa, ea:ea, connectedPoints:[]});
   }
   removePoint(x, y){
     // (x, y)に最も近い点を探す
@@ -51,6 +76,10 @@ class figureSet{
     let distPow2 = Math.pow(this.points[id].x - x, 2) + Math.pow(this.points[id].y - y, 2);
     if(distPow2 > 25){ return; }
     this.points.splice(id, 1); // 該当する点を削除
+  }
+  reset(){
+    // activeをキャンセル
+    if(this.activePointId >= 0){ this.points[this.activePointId].active = false; }
   }
   calcClosestPoint(x, y){
     let minDist = 40000;
