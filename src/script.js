@@ -11,6 +11,7 @@
         重複して直線が登録されないようにする工夫が必要。
 
  arc関数の復習：(中心のx, 中心のy, 横幅、縦幅、始端角度、終端角度). あとはnoFillにしといてね。
+ 角度ごちゃごちゃするのやめた。どうせ黒だから円弧でいいや。
 
  step4.1: 点をクリックすると赤くなる
  step4:2: 他の点をクリックすると赤い点とその点を結ぶ直線が追加される。
@@ -27,8 +28,8 @@ let figSet;
 let drawMode = 0;
 let button_off = [];
 let button_on = [];
-const buttonPos = [{x:-210, y:210}, {x:-210, y:270}];
-const MaxButtonId = 2;
+const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}];
+const MaxButtonId = 3;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -63,21 +64,24 @@ class figureSet{
     // (x, y)は位置、activeは赤くなる、connectedLinesは直線のidを入れる。
     this.points.push({x:x, y:y, active:false, connectedLines:[]});
   }
-  addLine(cx, cy, sa, ea){
+  addLine(type, info){
     // activePointIdとidの間に直線を追加する。中心とangleの範囲の組が追加されることになる予定・・
     // connectedPointsは接続している点のidを入れる。
-    // centerX, centerY, startAngle, endAngle.
-    this.lines.push({cx:cx, cy:cy, sa:sa, ea:ea, connectedPoints:[]});
+    // typeは'arc'か'line'. 'arc'の場合のinfoは中心と半径(cx, cy, r)、'line'の場合のinfoは両端の座標(x1, y1, x2, y2).
+    if(type === 'arc'){
+      this.lines.push({type:type, info:info, connectedPoints:[]});
+    }
   }
   removePoint(x, y){
     // (x, y)に最も近い点を探す
     // その点との距離が5以下ならその点を削除する
     let id = this.calcClosestPoint(x, y);
+    if(id < 0){ return; } // 点が存在しない時、これがないとエラーになる。
     let distPow2 = Math.pow(this.points[id].x - x, 2) + Math.pow(this.points[id].y - y, 2);
     if(distPow2 > 25){ return; }
     this.points.splice(id, 1); // 該当する点を削除
   }
-  reset(){
+  inActivate(){
     // activeをキャンセル
     if(this.activePointId >= 0){ this.points[this.activePointId].active = false; }
   }
@@ -117,12 +121,16 @@ function mouseClicked(){
       return;
     }else if(drawMode === 1){
       figSet.removePoint(x, y);
+    }else if(drawMode === 2){
+      return;
     }
   }else{
     x = mouseX - 30, y = mouseY - 410;
     if(x < 0 || x > 450 || y < 0 || y > 240){ return; }
     if((x % 150) > 120 || (y % 60) > 40){ return; }
     let buttonId = 4 * Math.floor(x / 150) + Math.floor(y / 60);
+    if(drawMode === buttonId){ return; } // 同じモードになるときは何も起こらない。
+    // モード切替の際にinActivate()して赤い点とか直線とかそういうのリセットする。
     drawMode = buttonId;
   }
   return;
