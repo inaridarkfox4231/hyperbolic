@@ -23,12 +23,15 @@
  step6: 線上に点を打つ。直線の上に点を追加するということ。
  step7: 直線上の点をドラッグドロップで移動できるようにしたい。
  step8: 点をドラッグドロップして、その点と他の点とを結ぶ直線もいっしょに動くようにしたい。
+
+ んー、removeの際にも、いったん選択した点が赤くなって、それから消すようにした方がいいかも。うっかり消して
+ しまわないように。人的ミスを考慮するみたいな。で、赤い時にもっかいクリックで消去。
 */
 let figSet;
 let drawMode = 0;
 let button_off = [];
 let button_on = [];
-const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}];
+const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}];
 const MaxButtonId = 3;
 
 function preload(){
@@ -122,6 +125,9 @@ function mouseClicked(){
     }else if(drawMode === 1){
       figSet.removePoint(x, y);
     }else if(drawMode === 2){
+      // 選択した点がactiveでなく、かつactiveな点がない→activeにする
+      // 選択した点がactiveでなく、かつactiveな点が存在する→それらを結ぶ円弧または直線を追加
+      // 選択した点がactive→activeを解除する
       return;
     }
   }else{
@@ -134,4 +140,17 @@ function mouseClicked(){
     drawMode = buttonId;
   }
   return;
+}
+
+function getClosestPointId(x, y){
+  // (x, y)に最も近い点のidを取得して返す。点が存在しないか、あってもヒットしなければ-1を返す。
+  let minDist = 160000;
+  let id = -1;
+  let pointSet = figSet.points;
+  for(let i = 0; i < pointSet.length; i++){
+    let distPow2 = Math.pow(pointSet[i].x - x, 2) + Math.pow(pointSet[i].y - y, 2);
+    if(distPow2 < minDist){ minDist = distPow2; id = i; }
+  }
+  if(id < 0 || minDist > 25){ return -1; }
+  return id;
 }
