@@ -66,7 +66,11 @@ class figureSet{
     this.maxLineId = 0; // 次に設定する直線のid値
   }
   getMode(){ return this.drawMode; }
-  setMode(newMode){ this.drawMode = newMode; }
+  setMode(newMode){
+    if(newMode === this.drawMode){ return; }
+    this.inActivate();
+    this.drawMode = newMode;
+  }
   execute(x, y){
     switch(this.drawMode){
       case 0:
@@ -199,11 +203,7 @@ function mouseClicked(){
     let buttonId = 4 * Math.floor(x / 150) + Math.floor(y / 60);
     // buttonIdがMaxButtonIdの場合はモードチェンジを呼び出す
     // それ以外の場合はたとえば線分モードとの切り替えとかに使うかも
-    if(buttonId >= MaxButtonId){ return; }
-    let mode = figSet.getMode(); // モード取得
-    if(mode === buttonId){ return; } // 同じモードになるときは何も起こらない。
-    figSet.inActivate(); // モード切替の際にinActivate()して赤い点とか直線とかそういうのリセットする。
-    figSet.setMode(buttonId); // モード切替
+    if(buttonId < MaxButtonId){ figSet.setMode(buttonId); }
   }
   return;
 }
