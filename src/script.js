@@ -15,7 +15,7 @@
 
  step4.1: 点をクリックすると赤くなる
  step4:2: 他の点をクリックすると赤い点とその点を結ぶ直線が追加される。
- step4.3: 赤い点が固定されてるうちは他の点をクリックするたびに直線が追加される。
+ step4.3: 赤い点が固定されてるうちは他の点をクリックするたびに然るべく直線が追加される。
  step4.4: 赤い点をクリックするとキャンセルになり赤い点を選ぶところからやり直し。
  step4.5: 他のモードに変更すると点が赤いのとかリセットになる。
  step5: 線を消す・・点と直線の距離の公式（ポアンカレ平面版）を使って消す。その上の点とかは残る。
@@ -28,7 +28,6 @@
  しまわないように。人的ミスを考慮するみたいな。で、赤い時にもっかいクリックで消去。
 */
 let figSet;
-//let drawMode = 0;
 let button_off = [];
 let button_on = [];
 const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}];
@@ -62,7 +61,9 @@ class figureSet{
     this.points = [];
     this.lines = [];
     this.drawMode = 0; // drawModeはこっちもちでいいんじゃない。
-    this.activePointId = -1; // activeになってる点のid.
+    this.activePointId = -1; // activeになってる点のid.(activePointIndexの方がいいかも)
+    this.maxPointId = 0; // 次に設定する点のid値
+    this.maxLineId = 0; // 次に設定する直線のid値
   }
   getMode(){ return this.drawMode; }
   setMode(newMode){ this.drawMode = newMode; }
@@ -71,14 +72,40 @@ class figureSet{
       case 0:
         this.addPoint(x, y); return;
       case 1:
-        this.removePoint(x, y); return;
+        this.removePointMethod(x, y); return;
       case 2:
     }
   }
   addPoint(x, y){
     // (x, y)は位置、activeは赤くなる、connectedLinesは直線のidを入れる。
-    this.points.push({x:x, y:y, active:false, connectedLines:[]});
+    // id値を設定して番号の更新が不要になるようにした。
+    this.points.push({x:x, y:y, id:this.maxPointId, active:false, connectedLines:[]});
+    this.maxPointId++;
     console.log(x.toString() + "," + y.toString());
+  }
+  removePointMethod(x, y){
+    // (x, y)に最も近い点を探す
+    // その点との距離が5以下ならその点を削除する
+    let index = getClosestPointId(x, y);
+    if(index < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
+    let p = this.points[index]; // 該当する点を抜き出す処理
+    if(!p.active){
+      p.active = true;
+      if(this.activePointId >= 0){ this.points[this.activePointId].active = false; }
+      this.activePointId = index;
+    }else{
+      this.removePoint(p.id); // id値が'id'の点を削除
+      //this.points.splice(id, 1); // 該当する点を削除
+      this.activePointId = -1;
+    }
+  }
+  removePoint(id){
+    for(let index = 0; index < this.points.length; index++){
+      if(this.points[index].id === id){
+        this.points.splice(index, 1);
+        break;
+      }
+    }
   }
   addLine(type, info){
     // activePointIdとidの間に直線を追加する。中心とangleの範囲の組が追加されることになる予定・・
@@ -88,37 +115,10 @@ class figureSet{
       this.lines.push({type:type, info:info, connectedPoints:[]});
     }
   }
-  removePoint(x, y){
-    // (x, y)に最も近い点を探す
-    // その点との距離が5以下ならその点を削除する
-    let id = getClosestPointId(x, y);
-    if(id < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
-    let p = this.points[id]; // 該当する点を抜き出す処理
-    if(!p.active){
-      p.active = true;
-      if(this.activePointId >= 0){ this.points[this.activePointId].active = false; }
-      this.activePointId = id;
-    }else{
-      this.points.splice(id, 1); // 該当する点を削除
-      this.activePointId = -1;
-    }
-    //let distPow2 = Math.pow(this.points[id].x - x, 2) + Math.pow(this.points[id].y - y, 2);
-    //if(distPow2 > 25){ return; }
-    //this.points.splice(id, 1); // 該当する点を削除
-  }
   inActivate(){
     // activeをキャンセル
     if(this.activePointId >= 0){ this.points[this.activePointId].active = false; }
   }
-  /*calcClosestPoint(x, y){
-    let minDist = 40000;
-    let id = -1;
-    for(let i = 0; i < this.points.length; i++){
-      let distPow2 = Math.pow(this.points[i].x - x, 2) + Math.pow(this.points[i].y - y, 2);
-      if(distPow2 < minDist){ minDist = distPow2; id = i; }
-    }
-    return id;
-  }*/
   render(){
     fill(0);
     this.points.forEach((p) => {
@@ -144,20 +144,10 @@ function drawConfig(){
 function mouseClicked(){
   let x = mouseX - 240, y = mouseY - 200;
   if(Math.pow(x, 2) + Math.pow(y, 2) < 40000){
+    // 各種描画処理
     figSet.execute(x, y);
-    /*if(drawMode === 0){
-      figSet.addPoint(x, y);
-      console.log(x.toString() + "," + y.toString());
-      return;
-    }else if(drawMode === 1){
-      figSet.removePoint(x, y);
-    }else if(drawMode === 2){
-      // 選択した点がactiveでなく、かつactiveな点がない→activeにする
-      // 選択した点がactiveでなく、かつactiveな点が存在する→それらを結ぶ円弧または直線を追加
-      // 選択した点がactive→activeを解除する
-      return;
-    }*/
   }else{
+    // コンフィグ処理（モード変更処理）
     x = mouseX - 30, y = mouseY - 410;
     if(x < 0 || x > 450 || y < 0 || y > 240){ return; }
     if((x % 150) > 120 || (y % 60) > 40){ return; }
@@ -172,15 +162,16 @@ function mouseClicked(){
 }
 
 function getClosestPointId(x, y){
-  // (x, y)に最も近い点のidを取得して返す。点が存在しないか、あってもヒットしなければ-1を返す。
+  // (x, y)に最も近い点のindex(points上の通し番号)を取得して返す。点が存在しないか、あってもヒットしなければ-1を返す。
+  // 一応、半径の3倍まで反応するようにした。
   let pointSet = figSet.points;
   if(pointSet.length === 0){ return -1; }
   let minDist = 160000;
-  let id = -1;
+  let index = -1;
   for(let i = 0; i < pointSet.length; i++){
     let distPow2 = Math.pow(pointSet[i].x - x, 2) + Math.pow(pointSet[i].y - y, 2);
-    if(distPow2 < minDist){ minDist = distPow2; id = i; }
+    if(distPow2 < minDist){ minDist = distPow2; index = i; }
   }
-  if(id < 0 || minDist > 25){ return -1; }
-  return id;
+  if(index < 0 || minDist > 225){ return -1; }
+  return index;
 }
