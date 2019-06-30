@@ -61,7 +61,7 @@ class figureSet{
     this.points = [];
     this.lines = [];
     this.drawMode = 0; // drawModeはこっちもちでいいんじゃない。
-    this.activePointId = -1; // activeになってる点のid.(activePointIndexの方がいいかも)
+    this.activePointIndex = -1; // activeになってる点のid.(activePointIndexの方がいいかも)
     this.maxPointId = 0; // 次に設定する点のid値
     this.maxLineId = 0; // 次に設定する直線のid値
   }
@@ -74,29 +74,30 @@ class figureSet{
       case 1:
         this.removePointMethod(x, y); return;
       case 2:
+        this.addLineMethod(x, y); return;
     }
   }
   addPoint(x, y){
-    // (x, y)は位置、activeは赤くなる、connectedLinesは直線のidを入れる。
+    // (x, y)は位置、activeは赤くなる.
     // id値を設定して番号の更新が不要になるようにした。
-    this.points.push({x:x, y:y, id:this.maxPointId, active:false, connectedLines:[]});
+    this.points.push({x:x, y:y, id:this.maxPointId, active:false});
     this.maxPointId++;
     console.log(x.toString() + "," + y.toString());
   }
   removePointMethod(x, y){
     // (x, y)に最も近い点を探す
-    // その点との距離が5以下ならその点を削除する
+    // その点との距離が15以下ならその点を削除する
     let index = getClosestPointId(x, y);
     if(index < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
     let p = this.points[index]; // 該当する点を抜き出す処理
     if(!p.active){
       p.active = true;
-      if(this.activePointId >= 0){ this.points[this.activePointId].active = false; }
-      this.activePointId = index;
+      if(this.activePointIndex >= 0){ this.points[this.activePointIndex].active = false; }
+      this.activePointIndex = index;
     }else{
       this.removePoint(p.id); // id値が'id'の点を削除
       //this.points.splice(id, 1); // 該当する点を削除
-      this.activePointId = -1;
+      this.activePointIndex = -1;
     }
   }
   removePoint(id){
@@ -107,17 +108,41 @@ class figureSet{
       }
     }
   }
-  addLine(type, info){
-    // activePointIdとidの間に直線を追加する。中心とangleの範囲の組が追加されることになる予定・・
-    // connectedPointsは接続している点のidを入れる。
-    // typeは'arc'か'line'. 'arc'の場合のinfoは中心と半径(cx, cy, r)、'line'の場合のinfoは両端の座標(x1, y1, x2, y2).
-    if(type === 'arc'){
-      this.lines.push({type:type, info:info, connectedPoints:[]});
+  addLineMethod(x, y){
+    let index = getClosestPointId(x, y);
+    if(index < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
+    let p = this.points[index]; // 該当する点を抜き出す処理
+    if(!p.active){
+      // pがnon-activeのとき
+      if(this.activePointIndex < 0){
+        // activeな点がない時はその点をactiveにしておしまい
+        p.active = true;
+        this.activePointIndex = index;
+        return;
+      }else{
+        // activeな点があるときはその点とを結ぶ直線を引く
+        let q = this.points[this.activePointIndex];
+        addLine(p, q);
+        return;
+      }
+    }else{
+      // pがactiveなときはそれを解除する(これがないと他の点を選べない)
+      p.active = false;
+      this.activePointIndex = -1;
     }
+  }
+  addLine(p, q){
+    // pとqを結ぶ直線を引く。
+    // 円弧の場合は中心、直径、始端角度、終端角度を得る(cx, cy, diam, theta, phi)。
+    // Euclid線分の場合は両端の座標(x1, y1, x2, y2)。
+    // typeとinfoで、infoに先の情報を格納する。
+    let newLine = calcLine(p, q);
+    this.lines.push(newLine);
+    this.maxLineId++;
   }
   inActivate(){
     // activeをキャンセル
-    if(this.activePointId >= 0){ this.points[this.activePointId].active = false; }
+    if(this.activePointIndex >= 0){ this.points[this.activePointIndex].active = false; }
   }
   render(){
     fill(0);
@@ -174,4 +199,10 @@ function getClosestPointId(x, y){
   }
   if(index < 0 || minDist > 225){ return -1; }
   return index;
+}
+
+function calcLine(p, q){
+  // OpenProcessingの方で作った、円弧やEuclid線分を取得するメソッドを移植する。
+  // 円弧の場合は{type:'arc', info:{c: ,r: ,diam: ,theta: ,phi: }}って感じ。
+  // Euclid線分の場合は{type:'line', info:{x1: ,y1: ,x2: ,y2: }}って感じで。
 }
