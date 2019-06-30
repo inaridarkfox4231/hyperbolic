@@ -31,7 +31,7 @@ let figSet;
 let button_off = [];
 let button_on = [];
 const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}];
-const MaxButtonId = 3;
+const MaxButtonId = 4;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -79,6 +79,8 @@ class figureSet{
         this.removePointMethod(x, y); return;
       case 2:
         this.addLineMethod(x, y); return;
+      case 3:
+        this.removeLineMethod(x, y); return;
     }
   }
   addPoint(x, y){
@@ -142,8 +144,19 @@ class figureSet{
     // typeとinfoで、infoに先の情報を格納する。
     let newLine = getHypoLine(p, q);
     this.lines.push(newLine);
+    // パラメータを追加
+    newLine.id = this.maxLineId;
+    newLine.active = false;
     this.maxLineId++;
     console.log(newLine);
+  }
+  removeLineMethod(x, y){
+    // 直線を消す。
+    let index = getClosestLineId(x, y);
+    console.log(index);
+    if(index < 0){ return; } // 直線が存在しない時、またはクリック位置に近い直線がない時。
+    let l = this.lines[index]; // 該当する直線を抜き出す処理
+    return;
   }
   inActivate(){
     // activeをキャンセル
@@ -167,6 +180,7 @@ class figureSet{
     this.lines.forEach((l) => {
       // 円弧、又はEuclid線分の描画
       let data = l.info;
+      if(l.active){ stroke(70, 100, 100); }else{ stroke(0); }
       if(l.type === 'line'){
         line(data.x0, data.y0, data.x1, data.y1);
       }else{
@@ -221,6 +235,41 @@ function getClosestPointId(x, y){
   }
   if(index < 0 || minDist > 225){ return -1; }
   return index;
+}
+
+function getClosestLineId(x, y){
+  // (x, y)に最も近い点のindex(lines上の通し番号)を取得して返す。線が存在しないか、あってもノーヒットなら-1を返す。
+  let lineSet = figSet.lines;
+  if(lineSet.length === 0){ return -1; }
+  // 双曲距離でなくていいと思う・・中心との距離と半径から計算、線分の場合は例の公式。
+  let minDist = 400;
+  let index = -1;
+  for(let i = 0; i < lineSet.length; i++){
+    let l = lineSet[i];
+    let dist = calcDist(l, x, y);
+    if(dist < minDist){ minDist = dist; index = i; }
+  }
+  if(index < 0 || minDist > 15){ return -1; }
+  return index;
+}
+
+// lのところ、pとか、一般化するべきかな・・
+function calcDist(l, x, y){
+  let data = l.info;
+  if(l.type === 'line'){
+    // 点と直線の距離の公式で(x0, y0)と(x1, y1)を結ぶ直線との距離を出す。
+    let norm_p = Math.sqrt(Math.pow(data.x0, 2) + Math.pow(data.y0, 2));
+    let norm_q = Math.sqrt(Math.pow(data.x1, 2) + Math.pow(data.y1, 2));
+    if(norm_p > 0){
+      return abs(data.y0 * x - data.x0 * y) / norm_p;
+    }else{
+      return abs(data.y1 * x - data.x1 * y) / norm_q;
+    }
+  }else{
+    // arcの場合は中心(cx, cy)との距離と半径との差の絶対値。
+    let distCenter = Math.sqrt(Math.pow(data.cx - x, 2) + Math.pow(data.cy - y, 2));
+    return abs(distCenter - (data.diam / 2));
+  }
 }
 
 function getHypoLine(p, q){
