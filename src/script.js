@@ -122,7 +122,7 @@ class figureSet{
       }else{
         // activeな点があるときはその点とを結ぶ直線を引く
         let q = this.points[this.activePointIndex];
-        addLine(p, q);
+        this.addLine(p, q);
         return;
       }
     }else{
@@ -136,20 +136,40 @@ class figureSet{
     // 円弧の場合は中心、直径、始端角度、終端角度を得る(cx, cy, diam, theta, phi)。
     // Euclid線分の場合は両端の座標(x1, y1, x2, y2)。
     // typeとinfoで、infoに先の情報を格納する。
-    let newLine = calcLine(p, q);
+    let newLine = getHypoLine(p, q);
     this.lines.push(newLine);
     this.maxLineId++;
+    console.log(newLine);
   }
   inActivate(){
     // activeをキャンセル
-    if(this.activePointIndex >= 0){ this.points[this.activePointIndex].active = false; }
+    if(this.activePointIndex >= 0){
+      this.points[this.activePointIndex].active = false;
+      this.activePointIndex = -1;
+    }
   }
   render(){
-    fill(0);
+    push();
     this.points.forEach((p) => {
+      // 点の描画
       if(p.active){ fill(0, 100, 100); }else{ fill(0); }
       ellipse(p.x, p.y, 10, 10);
     })
+    pop();
+    push();
+    noFill();
+    stroke(0);
+    strokeWeight(1.0);
+    this.lines.forEach((l) => {
+      // 円弧、又はEuclid線分の描画
+      let data = l.info;
+      if(l.type === 'line'){
+        line(data.x0, data.y0, data.x1, data.y1);
+      }else{
+        arc(data.cx, data.cy, data.diam, data.diam, data.theta, data.phi);
+      }
+    })
+    pop();
   }
 }
 
@@ -177,6 +197,8 @@ function mouseClicked(){
     if(x < 0 || x > 450 || y < 0 || y > 240){ return; }
     if((x % 150) > 120 || (y % 60) > 40){ return; }
     let buttonId = 4 * Math.floor(x / 150) + Math.floor(y / 60);
+    // buttonIdがMaxButtonIdの場合はモードチェンジを呼び出す
+    // それ以外の場合はたとえば線分モードとの切り替えとかに使うかも
     if(buttonId >= MaxButtonId){ return; }
     let mode = figSet.getMode(); // モード取得
     if(mode === buttonId){ return; } // 同じモードになるときは何も起こらない。
@@ -201,8 +223,83 @@ function getClosestPointId(x, y){
   return index;
 }
 
-function calcLine(p, q){
+function getHypoLine(p, q){
   // OpenProcessingの方で作った、円弧やEuclid線分を取得するメソッドを移植する。
   // 円弧の場合は{type:'arc', info:{c: ,r: ,diam: ,theta: ,phi: }}って感じ。
-  // Euclid線分の場合は{type:'line', info:{x1: ,y1: ,x2: ,y2: }}って感じで。
+  // Euclid線分の場合は{type:'line', info:{x0: ,y0: ,x1: ,y1: }}って感じで。
+  let a = p.x, b = p.y, c = q.x, d = q.y;
+  let det = a * d - b * c;
+  if(det === 0){
+    // 直線のケース
+    let norm_p = a * a + b * b, norm_q = c * c + d * d;
+    let x0, y0, x1, y1;
+    if(norm_p > 0){
+      x0 = 200 * a / Math.sqrt(norm_p); y0 = 200 * b / Math.sqrt(norm_p); x1 = -x0; y1 = -y0;
+    }else{
+      x0 = 200 * c / Math.sqrt(norm_q); y0 = 200 * d / Math.sqrt(norm_q); x1 = -x0; y1 = -y0;
+    }
+    return {type:'line', info:{x0:x0, y0:y0, x1:x1, y1:y1}};
+  }
+  // 円の中心と半径
+  let cx = (d * (40000 + a * a + b * b) - b * (40000 + c * c + d * d)) / (2 * det);
+	let cy = (a * (40000 + c * c + d * d) - c * (40000 + a * a + b * b)) / (2 * det);
+	let diam = Math.sqrt(cx * cx + cy * cy - 40000) * 2;
+  // 円と外周の交点の情報を取得
+  let info = getCrossPoints(p, q);
+  let angles = getEndAngle(cx, cy, info.z, info.w);
+  return {type:'arc', info:{cx:cx, cy:cy, diam:diam, theta:angles.theta, phi: angles.phi}};
+}
+
+function getUpperPoint(p){
+	// ポアンカレの方の点pに対応する上半平面の点を取得する
+	let a = p.x / 200, b = p.y / 200;
+	let n = Math.pow(1 - a, 2) + Math.pow(b, 2);
+	return {x: -2 * b / n, y: (1 - a * a - b * b) / n};
+}
+
+function getCenterAndRadius(u, v){
+	// 上半平面の2点u, vを通る直線の円としての中心と半径を取得する
+	// ぶっささる場合はr:-1.
+	let a = u.x, b = u.y, c = v.x, d = v.y;
+	if(abs(a - c) === 0){ return {c:a, r:-1}; }
+	let center = (a * a + b * b - c * c - d * d) / (2 * (a - c));
+	let radius = Math.sqrt(a * a + b * b + center * center - 2 * a * center);
+	return {c:center, r:radius};
+}
+
+function getCrossPoints(p, q){
+	// ポアンカレモデル上の2点p, q（ただし原点を通る直線上にはない）に対し、
+	// それらを通る円弧と外周の交点の座標を取得する。
+	// 時計回りで小さい順。
+	// そうだ、角度の情報もないとどっちからどっちかが指定できないんだった。
+	let u = getUpperPoint(p);
+	let v = getUpperPoint(q);
+	let info = getCenterAndRadius(u, v);
+	if(info.r < 0){
+		return {z:{x:200, y:0, angle:0}, w:getPoincare(info.c)};
+	}else{
+		return {z:getPoincare(info.c - info.r), w:getPoincare(info.c + info.r)};
+	}
+}
+
+function getPoincare(t){
+	// 上半平面の実数tに対応するポアンカレモデル上の点の位置と角度を取得。
+	let n = t * t + 1;
+	return {x:200 * (t * t - 1) / n, y:200 * (-2 * t) / n, angle:2 * getAngle(-1, t)};
+}
+
+function getEndAngle(cx, cy, z, w){
+	// (cx, cy)を中心としz, w（外周の点）を通る円弧のうち円に収まる部分を描画するための
+	// 角度情報を与える。
+	let theta = getAngle(z.y - cy, z.x - cx);
+	let phi = getAngle(w.y - cy, w.x - cx);
+	if(w.angle - z.angle > Math.PI){ return {theta:theta, phi:phi}; }
+	else{ return {theta:phi, phi:theta}; }
+}
+
+function getAngle(y, x){
+	// atan2の計算（0～2*PI）
+	let angle = atan2(y, x);
+	if(angle >= 0){ return angle; }
+	else{ return angle + 2 * Math.PI; }
 }
