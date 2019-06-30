@@ -61,7 +61,8 @@ class figureSet{
     this.points = [];
     this.lines = [];
     this.drawMode = 0; // drawModeはこっちもちでいいんじゃない。
-    this.activePointIndex = -1; // activeになってる点のid.(activePointIndexの方がいいかも)
+    this.activePointIndex = -1; // activeになってる点のindex.(activePointIndexの方がいいかも)
+    this.activeLineIndex = -1;  // activeになってる直線のindex.(あれ・・idとどっちがいいんだろ・・)
     this.maxPointId = 0; // 次に設定する点のid値
     this.maxLineId = 0; // 次に設定する直線のid値
   }
@@ -153,10 +154,26 @@ class figureSet{
   removeLineMethod(x, y){
     // 直線を消す。
     let index = getClosestLineId(x, y);
-    console.log(index);
+    //console.log(index);
     if(index < 0){ return; } // 直線が存在しない時、またはクリック位置に近い直線がない時。
     let l = this.lines[index]; // 該当する直線を抜き出す処理
-    return;
+    if(!l.active){
+      l.active = true;
+      if(this.activeLineIndex >= 0){ this.lines[this.activeLineIndex].active = false; }
+      this.activeLineIndex = index;
+    }else{
+      this.removeLine(l.id);
+      this.activeLineIndex = -1;
+    }
+    //return;
+  }
+  removeLine(id){
+    for(let index = 0; index < this.lines.length; index++){
+      if(this.lines[index].id === id){
+        this.lines.splice(index, 1);
+        break;
+      }
+    }
   }
   inActivate(){
     // activeをキャンセル
