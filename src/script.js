@@ -1,39 +1,5 @@
 'use strict';
-/*
- step1: 円を表示する
- step2: クリックした場所に円を描く（直径はとりあえず10でいい）
- step3: クリックで点を排除できるようにする。
- step3.1: 点を追加するモードと点を削除するモードの切り替えができるようにし、
-          点を削除するモードの時はクリックしても点が追加されないようにする。
- step3.2: 点を削除するメソッドを追加する。
- step4: 線を引く・・点を二つ選んでそれらを結ぶ直線が追加されるようにする。
-        ここは点から線への参照が欲しいところ。もちろん線から点への参照も。
-        重複して直線が登録されないようにする工夫が必要。
 
- arc関数の復習：(中心のx, 中心のy, 横幅、縦幅、始端角度、終端角度). あとはnoFillにしといてね。
- 角度ごちゃごちゃするのやめた。どうせ黒だから円弧でいいや。
-
- step4.1: 点をクリックすると赤くなる
- step4:2: 他の点をクリックすると赤い点とその点を結ぶ直線が追加される。
- step4.3: 赤い点が固定されてるうちは他の点をクリックするたびに然るべく直線が追加される。
- step4.4: 赤い点をクリックするとキャンセルになり赤い点を選ぶところからやり直し。
- step4.5: 他のモードに変更すると点が赤いのとかリセットになる。
- step5: 線を消す・・点と直線の距離の公式（ポアンカレ平面版）を使って消す。その上の点とかは残る。
-        参照も消さないといけない。
- 2019/07/01現在
- 直線に点の情報を持たせるのはとりあえず保留。で、直線消すところまで行ったよ。
- 直線上に点を打つの面白いかも。
- 今やりたいのは、
- 1. 直線に点の情報を乗せる。で、重複を防ぐ。
-    まず、点をクリックしたときに、その点から延びる直線を走査して、その中にactiveな点を含むものがあれば、
-    その直線は既に存在しているので重複して登録されない、というようにする。
-    で、そのためには点とか直線に接続のパラメータを持たせないといけないの。
-    直線を引くときに直線に点のidを持たせて点に直線のidを持たせる。
-    点を消すときは、点から延びている直線からその点のid情報を削除する（メソッドで分離）。
-    点の方は特に何もしなくても問題ない（存在が消えるので）。
-    直線を消すときは、直線上の点からその直線のid情報を削除する（メソッドで分離）。
-    直線の方は問題ない、何もしなくても。
-*/
 let figSet;
 let button_off = [];
 let button_on = [];
@@ -70,12 +36,13 @@ class figureSet{
     this.drawMode = 0; // drawModeはこっちもちでいいんじゃない。
     this.activePointIndex = -1; // activeになってる点のindex.(activePointIndexの方がいいかも)
     this.activeLineIndex = -1;  // activeになってる直線のindex.(あれ・・idとどっちがいいんだろ・・)
-    this.maxPointId = 0; // 次に設定する点のid値
-    this.maxLineId = 0; // 次に設定する直線のid値
+    this.maxPointId = 0; // 次に設定する点のid値(偶数)
+    this.maxLineId = 1; // 次に設定する直線のid値(奇数)
   }
   getMode(){ return this.drawMode; }
   setMode(newMode){
     if(newMode === this.drawMode){ return; }
+    // activeとか解除する。
     this.inActivate();
     this.drawMode = newMode;
   }
@@ -94,8 +61,11 @@ class figureSet{
   addPoint(x, y){
     // (x, y)は位置、activeは赤くなる.
     // id値を設定して番号の更新が不要になるようにした。
-    this.points.push({x:x, y:y, id:this.maxPointId, active:false});
-    this.maxPointId++;
+    let newPoint = {x:x, y:y};
+    newPoint.id = this.maxPointId;
+    newPoint.active = false;
+    this.points.push(newPoint);
+    this.maxPointId += 2;
     console.log(x.toString() + "," + y.toString());
   }
   removePointMethod(x, y){
@@ -151,7 +121,7 @@ class figureSet{
     // パラメータを追加
     newLine.id = this.maxLineId;
     newLine.active = false;
-    this.maxLineId++;
+    this.maxLineId += 2;
     console.log(newLine);
   }
   removeLineMethod(x, y){
@@ -381,4 +351,52 @@ function getAngle(y, x){
 	let angle = atan2(y, x);
 	if(angle >= 0){ return angle; }
 	else{ return angle + 2 * Math.PI; }
+}
+
+// ---------------------------------------------------- //
+// 図形（点と直線、今んとこ。）。
+
+// 双曲平面上の点
+class hPoint{
+  constructor(x, y){
+    this.x = x;
+    this.y = y;
+    this.id = -1;
+    this.active = false;
+  }
+  setId(newId){ this.id = newId; }
+  activate(){ this.active = true; }
+  inActivate(){ this.active = false; }
+  render(){
+    // 点の描画
+    if(this.active){ fill(0, 100, 100); }else{ fill(0); }
+    ellipse(this.x, this.y, 10, 10);
+  }
+}
+
+// 双曲平面上の直線
+// generatorとしてp, qの情報を保存しといて、変換がかかったらそのp, qを移して新しくデータを計算し、
+// typeとinfoはそこから取得して、idは変えないで、generatorは変換先でOK.
+class hLine{
+  constructor(p, q){
+    let lineData = getHypoLine(p, q);
+    this.type = lineData.type;
+    this.info = lineData.info;
+    this.id = -1;
+    this.active = false;
+    this.generator = {p:p, q:q}; // 作った時に使った点
+  }
+  setId(newId){ this.id = newId; }
+  activate(){ this.active = true; }
+  inActivate(){ this.active = false; }
+  render(){
+    // 円弧、又はEuclid線分の描画
+    let data = this.info;
+    if(this.active){ stroke(70, 100, 100); }else{ stroke(0); }
+    if(this.type === 'line'){
+      line(data.x0, data.y0, data.x1, data.y1);
+    }else{
+      arc(data.cx, data.cy, data.diam, data.diam, data.theta, data.phi);
+    }
+  }
 }
