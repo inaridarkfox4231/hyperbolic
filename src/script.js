@@ -61,21 +61,21 @@ class figureSet{
   addPoint(x, y){
     // (x, y)は位置、activeは赤くなる.
     // id値を設定して番号の更新が不要になるようにした。
-    let newPoint = {x:x, y:y};
-    newPoint.id = this.maxPointId;
-    newPoint.active = false;
-    this.points.push(newPoint);
+    let newPoint = new hPoint(x, y);
+    newPoint.setId(this.maxPointId);
     this.maxPointId += 2;
-    console.log(x.toString() + "," + y.toString());
+    this.points.push(newPoint);
+    console.log("(" + x.toString() + ", " + y.toString() + ")");
   }
   removePointMethod(x, y){
     // (x, y)に最も近い点を探す
     // その点との距離が15以下ならその点を削除する
-    let index = getClosestPointId(x, y);
+    let index = getClosestFigureIndex(x, y, this.points);
     if(index < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
     let p = this.points[index]; // 該当する点を抜き出す処理
     if(!p.active){
-      p.active = true;
+      p.activate();
+      //p.active = true;
       if(this.activePointIndex >= 0){ this.points[this.activePointIndex].active = false; }
       this.activePointIndex = index;
     }else{
@@ -89,14 +89,14 @@ class figureSet{
     if(index >= 0){ this.points.splice(index, 1); }
   }
   addLineMethod(x, y){
-    let index = getClosestPointId(x, y);
+    let index = getClosestFigureIndex(x, y, this.points);
     if(index < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
     let p = this.points[index]; // 該当する点を抜き出す処理
     if(!p.active){
       // pがnon-activeのとき
       if(this.activePointIndex < 0){
         // activeな点がない時はその点をactiveにしておしまい
-        p.active = true;
+        p.activate();
         this.activePointIndex = index;
         return;
       }else{
@@ -107,7 +107,8 @@ class figureSet{
       }
     }else{
       // pがactiveなときはそれを解除する(これがないと他の点を選べない)
-      p.active = false;
+      p.inActivate();
+      //p.active = false;
       this.activePointIndex = -1;
     }
   }
@@ -116,22 +117,20 @@ class figureSet{
     // 円弧の場合は中心、直径、始端角度、終端角度を得る(cx, cy, diam, theta, phi)。
     // Euclid線分の場合は両端の座標(x1, y1, x2, y2)。
     // typeとinfoで、infoに先の情報を格納する。
-    let newLine = getHypoLine(p, q);
-    this.lines.push(newLine);
-    // パラメータを追加
-    newLine.id = this.maxLineId;
-    newLine.active = false;
+    let newLine = new hLine(p, q);
+    newLine.setId(this.maxLineId);
     this.maxLineId += 2;
+    this.lines.push(newLine);
     console.log(newLine);
   }
   removeLineMethod(x, y){
     // 直線を消す。
-    let index = getClosestLineId(x, y);
+    let index = getClosestFigureIndex(x, y, this.lines);
     //console.log(index);
     if(index < 0){ return; } // 直線が存在しない時、またはクリック位置に近い直線がない時。
     let l = this.lines[index]; // 該当する直線を抜き出す処理
     if(!l.active){
-      l.active = true;
+      l.activate();
       if(this.activeLineIndex >= 0){ this.lines[this.activeLineIndex].active = false; }
       this.activeLineIndex = index;
     }else{
@@ -155,8 +154,7 @@ class figureSet{
     push();
     this.points.forEach((p) => {
       // 点の描画
-      if(p.active){ fill(0, 100, 100); }else{ fill(0); }
-      ellipse(p.x, p.y, 10, 10);
+      p.render();
     })
     pop();
     push();
@@ -165,13 +163,7 @@ class figureSet{
     strokeWeight(1.0);
     this.lines.forEach((l) => {
       // 円弧、又はEuclid線分の描画
-      let data = l.info;
-      if(l.active){ stroke(70, 100, 100); }else{ stroke(0); }
-      if(l.type === 'line'){
-        line(data.x0, data.y0, data.x1, data.y1);
-      }else{
-        arc(data.cx, data.cy, data.diam, data.diam, data.theta, data.phi);
-      }
+      l.render();
     })
     pop();
   }
@@ -222,34 +214,16 @@ function mouseClicked(){
   return;
 }
 
-function getClosestPointId(x, y){
-  // (x, y)に最も近い点のindex(points上の通し番号)を取得して返す。点が存在しないか、あってもヒットしなければ-1を返す。
-  // 一応、半径の3倍まで反応するようにした。
-  let pointSet = figSet.points;
-  if(pointSet.length === 0){ return -1; }
-  let minDist = 160000;
-  let index = -1;
-  for(let i = 0; i < pointSet.length; i++){
-    let distPow2 = Math.pow(pointSet[i].x - x, 2) + Math.pow(pointSet[i].y - y, 2);
-    if(distPow2 < minDist){ minDist = distPow2; index = i; }
-  }
-  if(index < 0 || minDist > 225){ return -1; }
-  return index;
-}
-
-function getClosestLineId(x, y){
-  // (x, y)に最も近い点のindex(lines上の通し番号)を取得して返す。線が存在しないか、あってもノーヒットなら-1を返す。
-  let lineSet = figSet.lines;
-  if(lineSet.length === 0){ return -1; }
-  // 双曲距離でなくていいと思う・・中心との距離と半径から計算、線分の場合は例の公式。
+function getClosestFigureIndex(x, y, targetSet){
+  // ひとつにまとめたい(targetSetに点の配列や直線の配列を入れる).
+  if(targetSet.length === 0){ return -1; }
   let minDist = 400;
   let index = -1;
-  for(let i = 0; i < lineSet.length; i++){
-    let l = lineSet[i];
-    let dist = calcDist(l, x, y);
+  for(let i = 0; i < targetSet.length; i++){
+    let dist = targetSet[i].getDist(x, y);
     if(dist < minDist){ minDist = dist; index = i; }
   }
-  if(index < 0 || minDist > 15){ return -1; }
+  if(index < 0 || minDist > 10){ return -1; }
   return index;
 }
 
@@ -367,6 +341,10 @@ class hPoint{
   setId(newId){ this.id = newId; }
   activate(){ this.active = true; }
   inActivate(){ this.active = false; }
+  getDist(x, y){
+    // (x, y)との距離を返す(Euclid距離)
+    return Math.sqrt(Math.pow(this.x - x, 2) + Math.pow(this.y - y, 2));
+  }
   render(){
     // 点の描画
     if(this.active){ fill(0, 100, 100); }else{ fill(0); }
@@ -389,6 +367,24 @@ class hLine{
   setId(newId){ this.id = newId; }
   activate(){ this.active = true; }
   inActivate(){ this.active = false; }
+  getDist(x, y){
+    // (x, y)との距離を返す（なおEuclid距離である）
+    let data = this.info;
+    if(this.type === 'line'){
+      // 点と直線の距離の公式で(x0, y0)と(x1, y1)を結ぶ直線との距離を出す。
+      let norm_p = Math.sqrt(Math.pow(data.x0, 2) + Math.pow(data.y0, 2));
+      let norm_q = Math.sqrt(Math.pow(data.x1, 2) + Math.pow(data.y1, 2));
+      if(norm_p > 0){
+        return abs(data.y0 * x - data.x0 * y) / norm_p;
+      }else{
+        return abs(data.y1 * x - data.x1 * y) / norm_q;
+      }
+    }else{
+      // arcの場合は中心(cx, cy)との距離と半径との差の絶対値。
+      let distCenter = Math.sqrt(Math.pow(data.cx - x, 2) + Math.pow(data.cy - y, 2));
+      return abs(distCenter - (data.diam / 2));
+    }
+  }
   render(){
     // 円弧、又はEuclid線分の描画
     let data = this.info;
