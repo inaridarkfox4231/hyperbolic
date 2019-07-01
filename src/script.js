@@ -20,6 +20,12 @@
  step4.5: 他のモードに変更すると点が赤いのとかリセットになる。
  step5: 線を消す・・点と直線の距離の公式（ポアンカレ平面版）を使って消す。その上の点とかは残る。
         参照も消さないといけない。
+ 2019/07/01現在
+ 直線に点の情報を持たせるのはとりあえず保留。で、直線消すところまで行ったよ。
+ 直線上に点を打つの面白いかも。
+ 今やりたいのは、
+ んぁぁ。そうか、線分と直線は混在OKだ。角度をいじるだけでいいんだし。ただまあ距離の辺りがめんどくさそうではある。
+ ドラッグして全体を動かすのどうやるんだろうね・・・
  step6: 線上に点を打つ。直線の上に点を追加するということ。
  step7: 直線上の点をドラッグドロップで移動できるようにしたい。
  step8: 点をドラッグドロップして、その点と他の点とを結ぶ直線もいっしょに動くようにしたい。
@@ -108,12 +114,14 @@ class figureSet{
     }
   }
   removePoint(id){
-    for(let index = 0; index < this.points.length; index++){
-      if(this.points[index].id === id){
-        this.points.splice(index, 1);
-        break;
-      }
-    }
+    let index = this.getPointIndexById(id);
+    if(index >= 0){ this.points.splice(index, 1); }
+    //for(let index = 0; index < this.points.length; index++){
+    //  if(this.points[index].id === id){
+    //    this.points.splice(index, 1);
+    //    break;
+    //  }
+    //}
   }
   addLineMethod(x, y){
     let index = getClosestPointId(x, y);
@@ -168,12 +176,14 @@ class figureSet{
     //return;
   }
   removeLine(id){
-    for(let index = 0; index < this.lines.length; index++){
+    let index = this.getLineIndexById(id);
+    if(index >= 0){ this.lines.splice(index, 1); }
+    /*for(let index = 0; index < this.lines.length; index++){
       if(this.lines[index].id === id){
         this.lines.splice(index, 1);
         break;
       }
-    }
+    }*/
   }
   inActivate(){
     // activeをキャンセル
@@ -205,6 +215,20 @@ class figureSet{
       }
     })
     pop();
+  }
+  getPointIndexById(id){
+    // idから該当する点の通し番号を取得
+    for(let index = 0; index < this.points.length; index++){
+      if(this.points[index].id === id){ return index; }
+    }
+    return -1;
+  }
+  getLineIndexById(id){
+    // idから該当する直線の通し番号を取得
+    for(let index = 0; index < this.lines.length; index++){
+      if(this.lines[index].id === id){ return index; }
+    }
+    return -1;
   }
 }
 
