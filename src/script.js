@@ -24,14 +24,15 @@
  直線に点の情報を持たせるのはとりあえず保留。で、直線消すところまで行ったよ。
  直線上に点を打つの面白いかも。
  今やりたいのは、
- んぁぁ。そうか、線分と直線は混在OKだ。角度をいじるだけでいいんだし。ただまあ距離の辺りがめんどくさそうではある。
- ドラッグして全体を動かすのどうやるんだろうね・・・
- step6: 線上に点を打つ。直線の上に点を追加するということ。
- step7: 直線上の点をドラッグドロップで移動できるようにしたい。
- step8: 点をドラッグドロップして、その点と他の点とを結ぶ直線もいっしょに動くようにしたい。
-
- んー、removeの際にも、いったん選択した点が赤くなって、それから消すようにした方がいいかも。うっかり消して
- しまわないように。人的ミスを考慮するみたいな。で、赤い時にもっかいクリックで消去。
+ 1. 直線に点の情報を乗せる。で、重複を防ぐ。
+    まず、点をクリックしたときに、その点から延びる直線を走査して、その中にactiveな点を含むものがあれば、
+    その直線は既に存在しているので重複して登録されない、というようにする。
+    で、そのためには点とか直線に接続のパラメータを持たせないといけないの。
+    直線を引くときに直線に点のidを持たせて点に直線のidを持たせる。
+    点を消すときは、点から延びている直線からその点のid情報を削除する（メソッドで分離）。
+    点の方は特に何もしなくても問題ない（存在が消えるので）。
+    直線を消すときは、直線上の点からその直線のid情報を削除する（メソッドで分離）。
+    直線の方は問題ない、何もしなくても。
 */
 let figSet;
 let button_off = [];
@@ -116,12 +117,6 @@ class figureSet{
   removePoint(id){
     let index = this.getPointIndexById(id);
     if(index >= 0){ this.points.splice(index, 1); }
-    //for(let index = 0; index < this.points.length; index++){
-    //  if(this.points[index].id === id){
-    //    this.points.splice(index, 1);
-    //    break;
-    //  }
-    //}
   }
   addLineMethod(x, y){
     let index = getClosestPointId(x, y);
@@ -178,12 +173,6 @@ class figureSet{
   removeLine(id){
     let index = this.getLineIndexById(id);
     if(index >= 0){ this.lines.splice(index, 1); }
-    /*for(let index = 0; index < this.lines.length; index++){
-      if(this.lines[index].id === id){
-        this.lines.splice(index, 1);
-        break;
-      }
-    }*/
   }
   inActivate(){
     // activeをキャンセル
