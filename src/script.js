@@ -3,8 +3,8 @@
 let figSet;
 let button_off = [];
 let button_on = [];
-const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}];
-const MaxButtonId = 6;
+const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}, {x:-60, y:330}];
+const MaxButtonId = 7;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -28,6 +28,7 @@ function draw(){
   ellipse(0, 0, 400, 400);
   // translateモードは毎フレーム。
   if(figSet.getMode() === 4){ figSet.hyperbolicTranslateMethod(); }
+  if(figSet.getMode() === 6){ figSet.rotateMethod(); }
   figSet.render();
   drawConfig();
 }
@@ -193,6 +194,18 @@ class figureSet{
     this.points.forEach((p) => {p.move(dx, dy);})
     this.lines.forEach((l) => {l.move(dx, dy);})
   }
+  rotateMethod(){
+    // 回転（中心の右と左、それぞれについて、上下にドラッグしてそのように回転させる。）
+    if(!mouseIsPressed){ return; }
+    // dyを回転角に変換する。
+    let dtheta = (mouseY - pmouseY) * 0.02;
+    if(mouseX < 200){ dtheta = -dtheta; } // 左でドラッグした時は逆に回す。
+    this.hyperbolicRotate(dtheta);
+  }
+  hyperbolicRotate(dtheta){
+    this.points.forEach((p) => {p.rotate(dtheta);})
+    this.lines.forEach((l) => {l.rotate(dtheta);})
+  }
   getPointIndexById(id){
     // idから該当する点の通し番号を取得
     for(let index = 0; index < this.points.length; index++){
@@ -226,7 +239,8 @@ function mouseClicked(){
   let x = mouseX - 240, y = mouseY - 200;
   if(Math.pow(x, 2) + Math.pow(y, 2) < 40000){
     // 各種描画処理
-    if(figSet.getMode() !== 4){ figSet.execute(x, y); }
+    let mode = figSet.getMode();
+    if(mode !== 4 && mode !== 6){ figSet.execute(x, y); }
   }else{
     // コンフィグ処理（モード変更処理）
     x = mouseX - 30, y = mouseY - 410;
@@ -376,6 +390,11 @@ class hPoint{
     this.x = p.x;
     this.y = p.y;
   }
+  rotate(dtheta){
+    let p = getHypoRotate(dtheta, this);
+    this.x = p.x;
+    this.y = p.y;
+  }
   render(){
     // 点の描画
     if(this.active){ fill(0, 100, 100); }else{ fill(0); }
@@ -424,6 +443,14 @@ class hLine{
     this.info = newData.info;
     this.generator = {p:p, q:q};
   }
+  rotate(dtheta){
+    let p = getHypoRotate(dtheta, this.generator.p);
+    let q = getHypoRotate(dtheta, this.generator.q);
+    let newData = getHypoLine(p, q);
+    this.type = newData.type;
+    this.info = newData.info;
+    this.generator = {p:p, q:q};
+  }
   render(){
     // 円弧、又はEuclid線分の描画
     let data = this.info;
@@ -452,4 +479,10 @@ function getHypoTranslate(dx, dy, p){
   let x = n * (n * a + (a * c + b * d)) / divider;
   let y = n * (n * b + b * c - a * d) / divider;
   return {x:x, y:y};
+}
+
+function getHypoRotate(dtheta, p){
+  // dthetaだけ回転させる、pを。普通の回転。
+  let c = Math.cos(dtheta), s = Math.sin(dtheta);
+  return {x:p.x * c - p.y * s, y:p.x * s + p.y * c};
 }
