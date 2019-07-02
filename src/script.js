@@ -3,8 +3,8 @@
 let figSet;
 let button_off = [];
 let button_on = [];
-const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}, {x:-60, y:330}, {x:-60, y:390}, {x:90, y:210}];
-const MaxButtonId = 9;
+const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}, {x:-60, y:330}, {x:-60, y:390}, {x:90, y:210}, {x:90, y:270}];
+const MaxButtonId = 10;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -66,6 +66,8 @@ class figureSet{
         this.addIntersectionMethod(x, y); return;
       case 8:
         this.addMiddlePointMethod(x, y); return;
+      case 9:
+        this.addNormalLineMethod(x, y); return;
     }
   }
   addPoint(x, y){
@@ -266,6 +268,44 @@ class figureSet{
       p.inActivate();
       //p.active = false;
       this.activePointIndex = -1;
+    }
+  }
+  addNormalLineMethod(x, y){
+    // クリックした直線がactiveになり、その状態で点をクリックすると垂線が追加される。
+    // 線がactiveなときに点をクリックすると引かれるけど・・
+    // 先に線をサーチしてそれがactiveならそれをinActivateするのを優先する。
+    // そのうえで点の方をサーチして点が見つかれば垂線を引く感じ。
+    // 違う、これだと点が反応してくれない。
+    // クリックで反応する直線はactiveLineがない場合：すべて、ある場合：activeなやつだけ。
+    // だからまずactiveLineIndexを見てこれが-1ならlineだけ見てactivateするか否か判断してreturn.
+    // 次に>=0の場合はまず点を見てOKなら垂線を引いてreturn.
+    // >=0で点がない場合、activeな線をクリックしているならそれをinActivateしてreturnだ。完璧！
+    let lineIndex = getClosestFigureIndex(x, y, this.lines);
+    let pointIndex = getClosestFigureIndex(x, y, this.points);
+    if(lineIndex < 0 && pointIndex < 0){ return; }
+    if(this.activeLineIndex < 0){
+      // activeな線がないので、線にヒットしてればそれをactivateする, やることはそれだけ。
+      if(lineIndex >= 0){
+        let l = this.lines[lineIndex];
+        l.activate();
+        this.activeLineIndex = lineIndex;
+      }
+      return;
+    }
+    let l = this.lines[this.activeLineIndex];
+    if(pointIndex >= 0){
+      // 垂線を引く。
+      let p = this.points[pointIndex];
+      let normal = getNormal(p, l);
+      this.addLine(normal.p, normal.q);
+      return;
+    }else{
+      // 点にヒットしていない時はactiveな線にヒットしてればそれを戻すし、さもなくばすることは何もない。
+      if(lineIndex === this.activeLineIndex){
+        l.inActivate();
+        this.activeLineIndex = -1;
+        return;
+      }
     }
   }
   getPointIndexById(id){
@@ -628,4 +668,55 @@ function getMiddlePoint(p, q){
   let mid2 = getHypoTranslate(dx, dy, mid);
   mid.x = mid2.x, mid.y = mid2.y;
   return mid;
+}
+
+// 全部この辺、一次分数変換でいい気がするな・・
+
+function getNormal(p, l){
+  // pを通りlに垂直に交わる直線を取得する。
+  // ほんと同じこと何度もやってるからリファクタリングしないとやばい、とはいえまあ、とりあえず。
+  // いつものようにlのgeneratorをいじってlがx軸になるようにする。
+  // それによりpが動く、そこからさらに今回はpのx座標の分だけマイナスしてy軸上に持ってくる。
+  // そのときのy軸に相当する直線が（generator(0, ±100)とでもすればいい）求める垂線なので、
+  // あとはそれを引き戻すだけ～。
+  // ごめんなさい。duの計算が間違ってますね・・
+  // 原点をx軸負方向に動かす距離を、垂線に関わる点がそれによってy軸上に来る分だけ動かすので、
+  // そのEuclid距離を計算しないといけないのでした。ぎゃーす。
+  let pSet = [{x:p.x, y:p.y}, {x:l.generator.p.x, y:l.generator.p.y}, {x:l.generator.q.x, y:l.generator.q.y}];
+  let dx, dy, dtheta, du;
+  dx = pSet[1].x, dy = pSet[1].y;
+  pSet.forEach((p) => {
+    console.log(p);
+    let newP = getHypoTranslate(-dx, -dy, p);
+    p.x = newP.x, p.y = newP.y;
+    console.log(p);
+  })
+  dtheta = atan2(pSet[2].y, pSet[2].x);
+  console.log("dtheta=" + dtheta);
+  pSet.forEach((p) => {
+    console.log(p);
+    let newP = getHypoRotate(-dtheta, p);
+    p.x = newP.x, p.y = newP.y;
+    console.log(p);
+  })
+  // du = pSet[0].x; // ここがミスってる箇所。
+  // 2次方程式の解・・これでいいのか？？一応小さい方を取った。
+  let u = pSet[0].x, v = pSet[0].y;
+  if(abs(u) > 0){
+    let h = 40000 + u * u + v * v;
+    du = (h - Math.sqrt(h * h - 4 * 40000 * u * u)) / (2 * u);
+  }else{
+    du = 0;
+  }
+  console.log("du=" + du);
+  pSet.forEach((p) => {
+    let newP = getHypoTranslate(-du, 0, p);
+    p.x = newP.x, p.y = newP.y;
+    console.log(p);
+  })
+  let gp = {x:0, y:100}, gq = {x:0, y:-100};
+  let gp1 = getHypoTranslate(du, 0, gp), gq1 = getHypoTranslate(du, 0, gq);
+  let gp2 = getHypoRotate(dtheta, gp1), gq2 = getHypoRotate(dtheta, gq1);
+  let gp3 = getHypoTranslate(dx, dy, gp2), gq3 = getHypoTranslate(dx, dy, gq2);
+  return {p:gp3, q:gq3};
 }
