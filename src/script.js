@@ -3,8 +3,8 @@
 let figSet;
 let button_off = [];
 let button_on = [];
-const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}, {x:-60, y:330}, {x:-60, y:390}];
-const MaxButtonId = 8;
+const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}, {x:-60, y:330}, {x:-60, y:390}, {x:90, y:210}];
+const MaxButtonId = 9;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -64,6 +64,8 @@ class figureSet{
         this.centeringMethod(x, y); return;
       case 7:
         this.addIntersectionMethod(x, y); return;
+      case 8:
+        this.addMiddlePointMethod(x, y); return;
     }
   }
   addPoint(x, y){
@@ -238,6 +240,32 @@ class figureSet{
       l1.inActivate();
       //p.active = false;
       this.activeLineIndex = -1;
+    }
+  }
+  addMiddlePointMethod(x, y){
+    // 中点を取る処理。(ただし双曲距離)
+    let index = getClosestFigureIndex(x, y, this.points);
+    if(index < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
+    let p = this.points[index]; // 該当する点を抜き出す処理
+    if(!p.active){
+      // pがnon-activeのとき
+      if(this.activePointIndex < 0){
+        // activeな点がない時はその点をactiveにしておしまい
+        p.activate();
+        this.activePointIndex = index;
+        return;
+      }else{
+        // activeな点があるときはその点との中点を追加する。んー・・無駄が多いね・・
+        let q = this.points[this.activePointIndex];
+        let mid = getMiddlePoint(p, q);
+        this.addPoint(mid.x, mid.y);
+        return;
+      }
+    }else{
+      // pがactiveなときはそれを解除する(これがないと他の点を選べない)
+      p.inActivate();
+      //p.active = false;
+      this.activePointIndex = -1;
     }
   }
   getPointIndexById(id){
@@ -543,18 +571,14 @@ function getIntersection(l1, l2){
     p.x = newP.x, p.y = newP.y;
     //console.log(p);
   })
-  if(genSet[1].y !== 0){
-    dtheta = atan2(genSet[1].y, genSet[1].x);
-    // l1.generator.qがx軸上にくるように全体をrotate.
-    genSet.forEach((p) => {
-      //console.log(p);
-      let newP = getHypoRotate(-dtheta, p);
-      p.x = newP.x, p.y = newP.y;
-      //console.log(p);
-    })
-  }else{
-    dtheta = 0;
-  }
+  dtheta = atan2(genSet[1].y, genSet[1].x);
+  // l1.generator.qがx軸上にくるように全体をrotate.
+  genSet.forEach((p) => {
+    //console.log(p);
+    let newP = getHypoRotate(-dtheta, p);
+    p.x = newP.x, p.y = newP.y;
+    //console.log(p);
+  })
   // このときcopyl1、つまり動かしたl1はx軸になっているので、それとcopyl2で議論すればいい。
   let copyl1 = new hLine(genSet[0], genSet[1]);
   let copyl2 = new hLine(genSet[2], genSet[3]);
@@ -578,4 +602,30 @@ function getIntersection(l1, l2){
   let is2 = getHypoTranslate(dx, dy, is);
   is.x = is2.x, is.y = is2.y;
   return is;
+}
+
+function getMiddlePoint(p, q){
+  // pとqの中点。pが原点でqがx軸上の場合は、qの絶対値をrとして中点を同じ軸上に取れる。
+  // rから計算される然るべき値をq.xと同じ符号で返すだけ。
+  // 一般の場合は、然るべく全体をtranslateするだけ。
+  let pSet = [{x:p.x, y:p.y}, {x:q.x, y:q.y}];
+  let dx, dy, dtheta;
+  dx = pSet[0].x, dy = pSet[0].y;
+  pSet.forEach((p) => {
+    let newP = getHypoTranslate(-dx, -dy, p);
+    p.x = newP.x, p.y = newP.y;
+  })
+  dtheta = atan2(pSet[1].y, pSet[1].x);
+  pSet.forEach((p) => {
+    let newP = getHypoRotate(-dtheta, p);
+    p.x = newP.x, p.y = newP.y;
+  })
+  let r = pSet[1].x;
+  let x = 200 * (Math.sqrt(200 + r) - Math.sqrt(200 - r)) / (Math.sqrt(200 + r) + Math.sqrt(200 - r));
+  let mid = {x:x, y:0};
+  let mid1 = getHypoRotate(dtheta, mid);
+  mid.x = mid1.x, mid.y = mid1.y;
+  let mid2 = getHypoTranslate(dx, dy, mid);
+  mid.x = mid2.x, mid.y = mid2.y;
+  return mid;
 }
