@@ -3,8 +3,8 @@
 let figSet;
 let button_off = [];
 let button_on = [];
-const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}];
-const MaxButtonId = 4;
+const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}];
+const MaxButtonId = 5;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -17,6 +17,7 @@ function setup(){
   createCanvas(480, 640);
   colorMode(HSB, 100);
   figSet = new figureSet();
+  console.log(getHypoTranslate(1, 0, {x:200, y:0}));
 }
 
 function draw(){
@@ -56,6 +57,8 @@ class figureSet{
         this.addLineMethod(x, y); return;
       case 3:
         this.removeLineMethod(x, y); return;
+      case 4:
+        this.hyperbolicTranslate(); return;
     }
   }
   addPoint(x, y){
@@ -166,6 +169,11 @@ class figureSet{
       l.render();
     })
     pop();
+  }
+  hyperbolicTranslate(){
+    // とりあえずxとyの方向に10, 20だけずらす実験するかな。
+    this.points.forEach((p) => {p.move(1, 0); console.log("(" + p.x + ", " + p.y + ")");})
+    this.lines.forEach((l) => {l.move(1, 0);})
   }
   getPointIndexById(id){
     // idから該当する点の通し番号を取得
@@ -345,6 +353,11 @@ class hPoint{
     // (x, y)との距離を返す(Euclid距離)
     return Math.sqrt(Math.pow(this.x - x, 2) + Math.pow(this.y - y, 2));
   }
+  move(dx, dy){
+    let p = getHypoTranslate(dx, dy, this);
+    this.x = p.x;
+    this.y = p.y;
+  }
   render(){
     // 点の描画
     if(this.active){ fill(0, 100, 100); }else{ fill(0); }
@@ -362,7 +375,7 @@ class hLine{
     this.info = lineData.info;
     this.id = -1;
     this.active = false;
-    this.generator = {p:p, q:q}; // 作った時に使った点
+    this.generator = {p:{x:p.x, y:p.y}, q:{x:q.x, y:q.y}}; // 作った時に使った点（位置情報オンリー）
   }
   setId(newId){ this.id = newId; }
   activate(){ this.active = true; }
@@ -385,6 +398,14 @@ class hLine{
       return abs(distCenter - (data.diam / 2));
     }
   }
+  move(dx, dy){
+    let p = getHypoTranslate(dx, dy, this.generator.p);
+    let q = getHypoTranslate(dx, dy, this.generator.q);
+    let newData = getHypoLine(p, q);
+    this.type = newData.type;
+    this.info = newData.info;
+    this.generator = {p:p, q:q};
+  }
   render(){
     // 円弧、又はEuclid線分の描画
     let data = this.info;
@@ -395,4 +416,22 @@ class hLine{
       arc(data.cx, data.cy, data.diam, data.diam, data.theta, data.phi);
     }
   }
+}
+
+// 点については、そのまま変換するだけ。
+// 線については、generatorを・・なんか変だなこれ‥んー？
+function getHypoTranslate(dx, dy, p){
+  // dx = mouseX - pmouseX, dy = mouseY - pmouseYだけ中心点が動く、
+  // それによる双曲平面の平行移動により、p(.x, .yをもつ)がどうなるかを調べて{x:, y:}を返す。
+  // 一次変換の式は(dx + i * dy) * (z + r) / (r^2 * z + r) (ただしr = sqrt(dx^2 + dy^2.))(z = p.x + i * p.y)
+  // ただし、マウスを早く動かしすぎて外に出ることが無いように、
+  // 絶対値が200を越えるようならその絶対値で割って199を掛けるとかしようね。
+  let u = p.x, v = p.y;
+  let n = 40000;
+  let a = u + dx, b = v + dy, c = u * dx + v * dy, d = v * dx - u * dy;
+  let divider = (n + c) * (n + c) + d * d;
+  console.log(divider);
+  let x = n * (n * a + (a * c + b * d)) / divider;
+  let y = n * (n * b + b * c - a * d) / divider;
+  return {x:x, y:y};
 }
