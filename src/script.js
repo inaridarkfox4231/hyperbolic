@@ -3,8 +3,8 @@
 let figSet;
 let button_off = [];
 let button_on = [];
-const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}, {x:-60, y:330}];
-const MaxButtonId = 7;
+const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}, {x:-60, y:330}, {x:-60, y:390}];
+const MaxButtonId = 8;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -62,6 +62,8 @@ class figureSet{
         this.removeLineMethod(x, y); return;
       case 5:
         this.centeringMethod(x, y); return;
+      case 7:
+        this.addIntersectionMethod(x, y); return;
     }
   }
   addPoint(x, y){
@@ -71,7 +73,7 @@ class figureSet{
     newPoint.setId(this.maxPointId);
     this.maxPointId += 2;
     this.points.push(newPoint);
-    console.log("(" + x.toString() + ", " + y.toString() + ")");
+    console.log("(" + x + ", " + y + ")");
   }
   removePointMethod(x, y){
     // (x, y)に最も近い点を探す
@@ -155,13 +157,17 @@ class figureSet{
     if(index < 0){ return; }
     let p = this.points[index];
     this.hyperbolicTranslate(-p.x, -p.y);
+    this.lines.forEach((l) => {
+      console.log(l);
+      console.log(l.generator.p.x * l.generator.q.y - l.generator.p.y * l.generator.q.x);
+    })
   }
   inActivate(){
     // activeをキャンセル
-    if(this.activePointIndex >= 0){
-      this.points[this.activePointIndex].active = false;
-      this.activePointIndex = -1;
-    }
+    this.activePointIndex = -1;
+    this.activeLineIndex = -1;
+    this.points.forEach((p) => {p.inActivate();})
+    this.lines.forEach((l) => {l.inActivate();})
   }
   render(){
     push();
@@ -205,6 +211,34 @@ class figureSet{
   hyperbolicRotate(dtheta){
     this.points.forEach((p) => {p.rotate(dtheta);})
     this.lines.forEach((l) => {l.rotate(dtheta);})
+  }
+  addIntersectionMethod(x, y){
+    // クリックした直線がactiveになり、他の直線をクリックすることで交点が出現する
+    let index = getClosestFigureIndex(x, y, this.lines);
+    if(index < 0){ return; } // 直線が存在しない時、またはクリック位置に近い直線がない時。
+    let l1 = this.lines[index]; // 該当する直線を抜き出す処理
+    if(!l1.active){
+      // l1がnon-activeのとき
+      if(this.activeLineIndex < 0){
+        // activeな直線がない時はその直線をactiveにしておしまい
+        l1.activate();
+        this.activeLineIndex = index;
+        return;
+      }else{
+        // activeな直線があるときはその直線との交点が、あれば、追加。なければなにもしない。
+        let l2 = this.lines[this.activeLineIndex];
+        let p = getIntersection(l1, l2);
+        if(p === undefined){ return; }
+        //console.log("(" + p.x + ", " + p.y + ")");
+        this.addPoint(p.x, p.y);
+        return;
+      }
+    }else{
+      // l1がactiveなときはそれを解除する(これがないと他の直線を選べない)
+      l1.inActivate();
+      //p.active = false;
+      this.activeLineIndex = -1;
+    }
   }
   getPointIndexById(id){
     // idから該当する点の通し番号を取得
@@ -292,7 +326,7 @@ function getHypoLine(p, q){
   // Euclid線分の場合は{type:'line', info:{x0: ,y0: ,x1: ,y1: }}って感じで。
   let a = p.x, b = p.y, c = q.x, d = q.y;
   let det = a * d - b * c;
-  if(det === 0){
+  if(abs(det) < 0.0000000001){ // ここは悩みどころ・・でもまあ、いいか・・
     // 直線のケース
     let norm_p = a * a + b * b, norm_q = c * c + d * d;
     let x0, y0, x1, y1;
@@ -464,11 +498,11 @@ class hLine{
 }
 
 // 点については、そのまま変換するだけ。
-// 線については、generatorを・・なんか変だなこれ‥んー？
+// 線については、generatorを変換してもっかい直線を生成する。
 function getHypoTranslate(dx, dy, p){
   // dx = mouseX - pmouseX, dy = mouseY - pmouseYだけ中心点が動く、
   // それによる双曲平面の平行移動により、p(.x, .yをもつ)がどうなるかを調べて{x:, y:}を返す。
-  // 一次変換の式は(dx + i * dy) * (z + r) / (r^2 * z + r) (ただしr = sqrt(dx^2 + dy^2.))(z = p.x + i * p.y)
+  // 一次変換の式は40000 * (dx + idy + p.x + ip.y) / (40000 + (dx + idy)*(p.x - ip.y)).
   // ただし、マウスを早く動かしすぎて外に出ることが無いように、
   // 絶対値が200を越えるようならその絶対値で割って199を掛けるとかしようね。
   let u = p.x, v = p.y;
@@ -485,4 +519,63 @@ function getHypoRotate(dtheta, p){
   // dthetaだけ回転させる、pを。普通の回転。
   let c = Math.cos(dtheta), s = Math.sin(dtheta);
   return {x:p.x * c - p.y * s, y:p.x * s + p.y * c};
+}
+
+function getIntersection(l1, l2){
+  // 2直線l1, l2の交点として{x:x, y:y}を返す。
+  // 具体的には、まずl1のgeneratorのpのpx, pyを記録しておいて、これは最後に使う。
+  // l1, l2のコピーを用意する。
+  // -px, -pyだけそれらをmoveしたものを用意する。これでl1の方が原点を通る直線になる。
+  // さらにこのときのqx, qyについてqyが0でないなら回転も施す。こうして得られる変換を、
+  // l1, l2双方のgeneratorに施して二つの直線を作る。と、l1側がx軸になるから計算しやすくなる。
+  let dx, dy, dtheta;
+  let genSet = [];
+  // generatorに相当する点を4つ。
+  genSet.push({x:l1.generator.p.x, y:l1.generator.p.y});
+  genSet.push({x:l1.generator.q.x, y:l1.generator.q.y});
+  genSet.push({x:l2.generator.p.x, y:l2.generator.p.y});
+  genSet.push({x:l2.generator.q.x, y:l2.generator.q.y});
+  dx = genSet[0].x, dy = genSet[0].y;
+  // l1.generator.pが原点に来るように全体をtranslate.
+  genSet.forEach((p) => {
+    //console.log(p);
+    let newP = getHypoTranslate(-dx, -dy, p);
+    p.x = newP.x, p.y = newP.y;
+    //console.log(p);
+  })
+  if(genSet[1].y !== 0){
+    dtheta = atan2(genSet[1].y, genSet[1].x);
+    // l1.generator.qがx軸上にくるように全体をrotate.
+    genSet.forEach((p) => {
+      //console.log(p);
+      let newP = getHypoRotate(-dtheta, p);
+      p.x = newP.x, p.y = newP.y;
+      //console.log(p);
+    })
+  }else{
+    dtheta = 0;
+  }
+  // このときcopyl1、つまり動かしたl1はx軸になっているので、それとcopyl2で議論すればいい。
+  let copyl1 = new hLine(genSet[0], genSet[1]);
+  let copyl2 = new hLine(genSet[2], genSet[3]);
+  let x, y;
+  if(copyl2.type === 'line'){
+    // 双方直線なら原点。
+    x = 0, y = 0;
+  }else{
+    let a = copyl2.info.cx, b = copyl2.info.cy, r = copyl2.info.diam / 2;
+    let x1 = a + Math.sqrt(r * r - b * b);
+    let x2 = a - Math.sqrt(r * r - b * b);
+    // ここでバリデーション. なお交点が2つ以上できることはない。
+    if(abs(x1) < 200){ x = x1; }else if(abs(x2) < 200){ x = x2; }else{ return undefined; }
+    y = 0;
+  }
+  //console.log(x);
+  let is = {x:x, y:y}; // intersection.
+  // 回転とtranslateを逆に施す。
+  let is1 = getHypoRotate(dtheta, is);
+  is.x = is1.x, is.y = is1.y;
+  let is2 = getHypoTranslate(dx, dy, is);
+  is.x = is2.x, is.y = is2.y;
+  return is;
 }
