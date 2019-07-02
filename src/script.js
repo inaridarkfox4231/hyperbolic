@@ -3,8 +3,8 @@
 let figSet;
 let button_off = [];
 let button_on = [];
-const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}];
-const MaxButtonId = 5;
+const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}];
+const MaxButtonId = 6;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -17,7 +17,7 @@ function setup(){
   createCanvas(480, 640);
   colorMode(HSB, 100);
   figSet = new figureSet();
-  console.log(getHypoTranslate(1, 0, {x:200, y:0}));
+  //console.log(getHypoTranslate(1, 0, {x:200, y:0}));
 }
 
 function draw(){
@@ -26,6 +26,8 @@ function draw(){
   noStroke();
   fill(70);
   ellipse(0, 0, 400, 400);
+  // translateモードは毎フレーム。
+  if(figSet.getMode() === 4){ figSet.hyperbolicTranslateMethod(); }
   figSet.render();
   drawConfig();
 }
@@ -57,8 +59,8 @@ class figureSet{
         this.addLineMethod(x, y); return;
       case 3:
         this.removeLineMethod(x, y); return;
-      case 4:
-        this.hyperbolicTranslate(); return;
+      case 5:
+        this.centeringMethod(x, y); return;
     }
   }
   addPoint(x, y){
@@ -146,6 +148,13 @@ class figureSet{
     let index = this.getLineIndexById(id);
     if(index >= 0){ this.lines.splice(index, 1); }
   }
+  centeringMethod(x, y){
+    // 指定した点が中央に来るようにtranslateが成される。これがあれば中央に点を置くメソッド要らないね・・
+    let index = getClosestFigureIndex(x, y, this.points);
+    if(index < 0){ return; }
+    let p = this.points[index];
+    this.hyperbolicTranslate(-p.x, -p.y);
+  }
   inActivate(){
     // activeをキャンセル
     if(this.activePointIndex >= 0){
@@ -170,10 +179,19 @@ class figureSet{
     })
     pop();
   }
-  hyperbolicTranslate(){
+  hyperbolicTranslateMethod(){
     // とりあえずxとyの方向に10, 20だけずらす実験するかな。
-    this.points.forEach((p) => {p.move(1, 0); console.log("(" + p.x + ", " + p.y + ")");})
-    this.lines.forEach((l) => {l.move(1, 0);})
+    if(!mouseIsPressed){ return; }
+    let dx = mouseX - pmouseX, dy = mouseY - pmouseY;
+    if(dx * dx + dy * dy > 40000){
+      let norm = Math.sqrt(dx * dx + dy * dy);
+      dx *= 199 / norm, dy *= 199 / norm;
+    }
+    this.hyperbolicTranslate(dx, dy);
+  }
+  hyperbolicTranslate(dx, dy){
+    this.points.forEach((p) => {p.move(dx, dy);})
+    this.lines.forEach((l) => {l.move(dx, dy);})
   }
   getPointIndexById(id){
     // idから該当する点の通し番号を取得
@@ -208,7 +226,7 @@ function mouseClicked(){
   let x = mouseX - 240, y = mouseY - 200;
   if(Math.pow(x, 2) + Math.pow(y, 2) < 40000){
     // 各種描画処理
-    figSet.execute(x, y);
+    if(figSet.getMode() !== 4){ figSet.execute(x, y); }
   }else{
     // コンフィグ処理（モード変更処理）
     x = mouseX - 30, y = mouseY - 410;
@@ -430,7 +448,7 @@ function getHypoTranslate(dx, dy, p){
   let n = 40000;
   let a = u + dx, b = v + dy, c = u * dx + v * dy, d = v * dx - u * dy;
   let divider = (n + c) * (n + c) + d * d;
-  console.log(divider);
+  //console.log(divider);
   let x = n * (n * a + (a * c + b * d)) / divider;
   let y = n * (n * b + b * c - a * d) / divider;
   return {x:x, y:y};
