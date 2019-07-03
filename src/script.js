@@ -404,7 +404,7 @@ function getHypoLine(p, q){
   // Euclid線分の場合は{type:'line', info:{x0: ,y0: ,x1: ,y1: }}って感じで。
   let a = p.x, b = p.y, c = q.x, d = q.y;
   let det = a * d - b * c;
-  if(abs(det) < 0.0000000001){ // ここは悩みどころ・・でもまあ、いいか・・
+  if(abs(det) < 0.00000001){ // ここは悩みどころ・・でもまあ、いいか・・
     // 直線のケース
     let norm_p = a * a + b * b, norm_q = c * c + d * d;
     let x0, y0, x1, y1;
