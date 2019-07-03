@@ -375,7 +375,7 @@ function getClosestFigureIndex(x, y, targetSet){
     let dist = targetSet[i].getDist(x, y);
     if(dist < minDist){ minDist = dist; index = i; }
   }
-  if(index < 0 || minDist > 10){ return -1; }
+  if(index < 0 || minDist > 15){ return -1; }
   return index;
 }
 
