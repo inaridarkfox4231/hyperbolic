@@ -8,7 +8,6 @@ const RADIUS_DOUBLE = 40000; // 使うかも
 let buttonPos = [];
 for(let i = 0; i < 10; i++){ buttonPos.push({x:200, y:40 * i - 200}); }
 for(let i = 0; i < 10; i++){ buttonPos.push({x:320, y:40 * i - 200}); }
-//const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}, {x:-60, y:330}, {x:-60, y:390}, {x:90, y:210}, {x:90, y:270}];
 const MaxButtonId = 11;
 
 function preload(){
@@ -697,18 +696,18 @@ function getNormal(p, l){
   let dx, dy, dtheta, du;
   dx = pSet[1].x, dy = pSet[1].y;
   pSet.forEach((p) => {
-    console.log(p);
+    //console.log(p);
     let newP = getHypoTranslate(-dx, -dy, p);
     p.x = newP.x, p.y = newP.y;
-    console.log(p);
+    //console.log(p);
   })
   dtheta = atan2(pSet[2].y, pSet[2].x);
-  console.log("dtheta=" + dtheta);
+  //console.log("dtheta=" + dtheta);
   pSet.forEach((p) => {
-    console.log(p);
+    //console.log(p);
     let newP = getHypoRotate(-dtheta, p);
     p.x = newP.x, p.y = newP.y;
-    console.log(p);
+    //console.log(p);
   })
   // du = pSet[0].x; // ここがミスってる箇所。
   // 2次方程式の解・・これでいいのか？？一応小さい方を取った。
@@ -719,11 +718,11 @@ function getNormal(p, l){
   }else{
     du = 0;
   }
-  console.log("du=" + du);
+  //console.log("du=" + du);
   pSet.forEach((p) => {
     let newP = getHypoTranslate(-du, 0, p);
     p.x = newP.x, p.y = newP.y;
-    console.log(p);
+    //console.log(p);
   })
   let gp = {x:0, y:100}, gq = {x:0, y:-100};
   let gp1 = getHypoTranslate(du, 0, gp), gq1 = getHypoTranslate(du, 0, gq);
