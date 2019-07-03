@@ -167,10 +167,6 @@ class figureSet{
     if(index < 0){ return; }
     let p = this.points[index];
     this.hyperbolicTranslate(-p.x, -p.y);
-    this.lines.forEach((l) => {
-      console.log(l);
-      console.log(l.generator.p.x * l.generator.q.y - l.generator.p.y * l.generator.q.x);
-    })
   }
   inActivate(){
     // activeをキャンセル
@@ -207,8 +203,8 @@ class figureSet{
     this.hyperbolicTranslate(dx, dy);
   }
   hyperbolicTranslate(dx, dy){
-    this.points.forEach((p) => {p.move(dx, dy);})
-    this.lines.forEach((l) => {l.move(dx, dy);})
+    this.points.forEach((p) => {p.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
+    this.lines.forEach((l) => {l.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
   }
   rotateMethod(){
     // 回転（中心の右と左、それぞれについて、上下にドラッグしてそのように回転させる。）
@@ -219,8 +215,8 @@ class figureSet{
     this.hyperbolicRotate(dtheta);
   }
   hyperbolicRotate(dtheta){
-    this.points.forEach((p) => {p.rotate(dtheta);})
-    this.lines.forEach((l) => {l.rotate(dtheta);})
+    this.points.forEach((p) => {p.move([{type:'rotate', info:{dtheta:dtheta}}]);})
+    this.lines.forEach((l) => {l.move([{type:'rotate', info:{dtheta:dtheta}}]);})
   }
   addIntersectionMethod(x, y){
     // クリックした直線がactiveになり、他の直線をクリックすることで交点が出現する
@@ -480,7 +476,7 @@ function getAngle(y, x){
 }
 
 // ---------------------------------------------------- //
-// 図形（点と直線、今んとこ。）。
+// 図形（点と直線、今んとこ。）。円も描いてみたいけど。
 
 // 双曲平面上の点
 class hPoint{
@@ -497,15 +493,8 @@ class hPoint{
     // (x, y)との距離を返す(Euclid距離)
     return Math.sqrt(Math.pow(this.x - x, 2) + Math.pow(this.y - y, 2));
   }
-  move(dx, dy){
-    let p = getHypoTranslate(dx, dy, this);
-    this.x = p.x;
-    this.y = p.y;
-  }
-  rotate(dtheta){
-    let p = getHypoRotate(dtheta, this);
-    this.x = p.x;
-    this.y = p.y;
+  move(dataSet){
+    hypoMove(dataSet, this);
   }
   render(){
     // 点の描画
@@ -547,21 +536,17 @@ class hLine{
       return abs(distCenter - (data.diam / 2));
     }
   }
-  move(dx, dy){
-    let p = getHypoTranslate(dx, dy, this.generator.p);
-    let q = getHypoTranslate(dx, dy, this.generator.q);
-    let newData = getHypoLine(p, q);
+  regenerate(){
+    // generatorが更新された際に、その情報を使ってtypeとinfoを再設定する。
+    let newData = getHypoLine(this.generator.p, this.generator.q);
     this.type = newData.type;
     this.info = newData.info;
-    this.generator = {p:p, q:q};
   }
-  rotate(dtheta){
-    let p = getHypoRotate(dtheta, this.generator.p);
-    let q = getHypoRotate(dtheta, this.generator.q);
-    let newData = getHypoLine(p, q);
-    this.type = newData.type;
-    this.info = newData.info;
-    this.generator = {p:p, q:q};
+  move(dataSet){
+    // generatorをいじってからregenerate.
+    hypoMove(dataSet, this.generator.p);
+    hypoMove(dataSet, this.generator.q);
+    this.regenerate();
   }
   render(){
     // 円弧、又はEuclid線分の描画
@@ -577,26 +562,34 @@ class hLine{
 
 // 点については、そのまま変換するだけ。
 // 線については、generatorを変換してもっかい直線を生成する。
-function getHypoTranslate(dx, dy, p){
+function hypoTranslate(dx, dy, p){
   // dx = mouseX - pmouseX, dy = mouseY - pmouseYだけ中心点が動く、
   // それによる双曲平面の平行移動により、p(.x, .yをもつ)がどうなるかを調べて{x:, y:}を返す。
   // 一次変換の式は40000 * (dx + idy + p.x + ip.y) / (40000 + (dx + idy)*(p.x - ip.y)).
   // ただし、マウスを早く動かしすぎて外に出ることが無いように、
   // 絶対値が200を越えるようならその絶対値で割って199を掛けるとかしようね。
-  let u = p.x, v = p.y;
   let n = 40000;
-  let a = u + dx, b = v + dy, c = u * dx + v * dy, d = v * dx - u * dy;
+  let a = p.x + dx, b = p.y + dy, c = p.x * dx + p.y * dy, d = p.y * dx - p.x * dy;
   let divider = (n + c) * (n + c) + d * d;
-  //console.log(divider);
-  let x = n * (n * a + (a * c + b * d)) / divider;
-  let y = n * (n * b + b * c - a * d) / divider;
-  return {x:x, y:y};
+  p.x = n * (n * a + (a * c + b * d)) / divider;
+  p.y = n * (n * b + b * c - a * d) / divider;
 }
 
-function getHypoRotate(dtheta, p){
+function hypoRotate(dtheta, p){
   // dthetaだけ回転させる、pを。普通の回転。
-  let c = Math.cos(dtheta), s = Math.sin(dtheta);
-  return {x:p.x * c - p.y * s, y:p.x * s + p.y * c};
+  let x = p.x, y = p.y;
+  p.x = x * Math.cos(dtheta) - y * Math.sin(dtheta);
+  p.y = x * Math.sin(dtheta) + y * Math.cos(dtheta);
+}
+
+// シークエンスで書くならこちら。
+function hypoMove(dataSet, p){
+  // データに基づいて然るべく変換を施す。type: 'translate' or 'rotate', info: dxとかdyとかdthetaとか。
+  for(let i = 0; i < dataSet.length; i++){
+    let m = dataSet[i];
+    if(m.type === 'translate'){ hypoTranslate(m.info.dx, m.info.dy, p); }
+    if(m.type === 'rotate'){ hypoRotate(m.info.dtheta, p); }
+  }
 }
 
 function getIntersection(l1, l2){
@@ -616,41 +609,32 @@ function getIntersection(l1, l2){
   dx = genSet[0].x, dy = genSet[0].y;
   // l1.generator.pが原点に来るように全体をtranslate.
   genSet.forEach((p) => {
-    //console.log(p);
-    let newP = getHypoTranslate(-dx, -dy, p);
-    p.x = newP.x, p.y = newP.y;
-    //console.log(p);
+    hypoTranslate(-dx, -dy, p);
   })
   dtheta = atan2(genSet[1].y, genSet[1].x);
   // l1.generator.qがx軸上にくるように全体をrotate.
   genSet.forEach((p) => {
-    //console.log(p);
-    let newP = getHypoRotate(-dtheta, p);
-    p.x = newP.x, p.y = newP.y;
-    //console.log(p);
+    hypoRotate(-dtheta, p);
   })
   // このときcopyl1、つまり動かしたl1はx軸になっているので、それとcopyl2で議論すればいい。
   let copyl1 = new hLine(genSet[0], genSet[1]);
   let copyl2 = new hLine(genSet[2], genSet[3]);
-  let x, y;
+  let x;
+  let y = 0;
   if(copyl2.type === 'line'){
     // 双方直線なら原点。
-    x = 0, y = 0;
+    x = 0;
   }else{
     let a = copyl2.info.cx, b = copyl2.info.cy, r = copyl2.info.diam / 2;
     let x1 = a + Math.sqrt(r * r - b * b);
     let x2 = a - Math.sqrt(r * r - b * b);
     // ここでバリデーション. なお交点が2つ以上できることはない。
     if(abs(x1) < 200){ x = x1; }else if(abs(x2) < 200){ x = x2; }else{ return undefined; }
-    y = 0;
   }
-  //console.log(x);
   let is = {x:x, y:y}; // intersection.
   // 回転とtranslateを逆に施す。
-  let is1 = getHypoRotate(dtheta, is);
-  is.x = is1.x, is.y = is1.y;
-  let is2 = getHypoTranslate(dx, dy, is);
-  is.x = is2.x, is.y = is2.y;
+  hypoRotate(dtheta, is);
+  hypoTranslate(dx, dy, is);
   return is;
 }
 
@@ -662,21 +646,17 @@ function getMiddlePoint(p, q){
   let dx, dy, dtheta;
   dx = pSet[0].x, dy = pSet[0].y;
   pSet.forEach((p) => {
-    let newP = getHypoTranslate(-dx, -dy, p);
-    p.x = newP.x, p.y = newP.y;
+    hypoTranslate(-dx, -dy, p);
   })
   dtheta = atan2(pSet[1].y, pSet[1].x);
   pSet.forEach((p) => {
-    let newP = getHypoRotate(-dtheta, p);
-    p.x = newP.x, p.y = newP.y;
+    hypoRotate(-dtheta, p);
   })
   let r = pSet[1].x;
   let x = 200 * (Math.sqrt(200 + r) - Math.sqrt(200 - r)) / (Math.sqrt(200 + r) + Math.sqrt(200 - r));
   let mid = {x:x, y:0};
-  let mid1 = getHypoRotate(dtheta, mid);
-  mid.x = mid1.x, mid.y = mid1.y;
-  let mid2 = getHypoTranslate(dx, dy, mid);
-  mid.x = mid2.x, mid.y = mid2.y;
+  hypoRotate(dtheta, mid);
+  hypoTranslate(dx, dy, mid);
   return mid;
 }
 
@@ -696,18 +676,11 @@ function getNormal(p, l){
   let dx, dy, dtheta, du;
   dx = pSet[1].x, dy = pSet[1].y;
   pSet.forEach((p) => {
-    //console.log(p);
-    let newP = getHypoTranslate(-dx, -dy, p);
-    p.x = newP.x, p.y = newP.y;
-    //console.log(p);
+    hypoTranslate(-dx, -dy, p);
   })
   dtheta = atan2(pSet[2].y, pSet[2].x);
-  //console.log("dtheta=" + dtheta);
   pSet.forEach((p) => {
-    //console.log(p);
-    let newP = getHypoRotate(-dtheta, p);
-    p.x = newP.x, p.y = newP.y;
-    //console.log(p);
+    hypoRotate(-dtheta, p);
   })
   // du = pSet[0].x; // ここがミスってる箇所。
   // 2次方程式の解・・これでいいのか？？一応小さい方を取った。
@@ -718,15 +691,10 @@ function getNormal(p, l){
   }else{
     du = 0;
   }
-  //console.log("du=" + du);
-  pSet.forEach((p) => {
-    let newP = getHypoTranslate(-du, 0, p);
-    p.x = newP.x, p.y = newP.y;
-    //console.log(p);
-  })
+  pSet.forEach((p) => { hypoTranslate(-du, 0, p); })
   let gp = {x:0, y:100}, gq = {x:0, y:-100};
-  let gp1 = getHypoTranslate(du, 0, gp), gq1 = getHypoTranslate(du, 0, gq);
-  let gp2 = getHypoRotate(dtheta, gp1), gq2 = getHypoRotate(dtheta, gq1);
-  let gp3 = getHypoTranslate(dx, dy, gp2), gq3 = getHypoTranslate(dx, dy, gq2);
-  return {p:gp3, q:gq3};
+  hypoTranslate(du, 0, gp); hypoTranslate(du, 0, gq);
+  hypoRotate(dtheta, gp); hypoRotate(dtheta, gq);
+  hypoTranslate(dx, dy, gp); hypoTranslate(dx, dy, gq);
+  return {p:gp, q:gq};
 }
