@@ -3,8 +3,13 @@
 let figSet;
 let button_off = [];
 let button_on = [];
-const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}, {x:-60, y:330}, {x:-60, y:390}, {x:90, y:210}, {x:90, y:270}];
-const MaxButtonId = 10;
+const RADIUS = 200; // 使うかも
+const RADIUS_DOUBLE = 40000; // 使うかも
+let buttonPos = [];
+for(let i = 0; i < 10; i++){ buttonPos.push({x:200, y:40 * i - 200}); }
+for(let i = 0; i < 10; i++){ buttonPos.push({x:320, y:40 * i - 200}); }
+//const buttonPos = [{x:-210, y:210}, {x:-210, y:270}, {x:-210, y:330}, {x:-210, y:390}, {x:-60, y:210}, {x:-60, y:270}, {x:-60, y:330}, {x:-60, y:390}, {x:90, y:210}, {x:90, y:270}];
+const MaxButtonId = 11;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -14,7 +19,7 @@ function preload(){
 }
 
 function setup(){
-  createCanvas(480, 640);
+  createCanvas(640, 400);
   colorMode(HSB, 100);
   figSet = new figureSet();
   //console.log(getHypoTranslate(1, 0, {x:200, y:0}));
@@ -22,7 +27,7 @@ function setup(){
 
 function draw(){
   background(0);
-  translate(240, 200);
+  translate(200, 200);
   noStroke();
   fill(70);
   ellipse(0, 0, 400, 400);
@@ -68,6 +73,8 @@ class figureSet{
         this.addMiddlePointMethod(x, y); return;
       case 9:
         this.addNormalLineMethod(x, y); return;
+      case 10:
+        this.allClear(); return;
     }
   }
   addPoint(x, y){
@@ -192,7 +199,7 @@ class figureSet{
   }
   hyperbolicTranslateMethod(){
     // とりあえずxとyの方向に10, 20だけずらす実験するかな。
-    if(!mouseIsPressed){ return; }
+    if(!mouseIsPressed || mouseX > 400){ return; }
     let dx = mouseX - pmouseX, dy = mouseY - pmouseY;
     if(dx * dx + dy * dy > 40000){
       let norm = Math.sqrt(dx * dx + dy * dy);
@@ -206,7 +213,7 @@ class figureSet{
   }
   rotateMethod(){
     // 回転（中心の右と左、それぞれについて、上下にドラッグしてそのように回転させる。）
-    if(!mouseIsPressed){ return; }
+    if(!mouseIsPressed || mouseX > 400){ return; }
     // dyを回転角に変換する。
     let dtheta = (mouseY - pmouseY) * 0.02;
     if(mouseX < 200){ dtheta = -dtheta; } // 左でドラッグした時は逆に回す。
@@ -322,11 +329,16 @@ class figureSet{
     }
     return -1;
   }
+  allClear(){
+    // 円内をクリックするとすべての図形が消え失せる
+    this.points = [];
+    this.lines = [];
+  }
 }
 
 function drawConfig(){
   fill(70);
-  rect(-240, 200, 480, 240);
+  rect(200, -200, 240, 400);
   for(let i = 0; i < MaxButtonId; i++){
     let mode = figSet.getMode();
     if(mode === i){
@@ -338,17 +350,16 @@ function drawConfig(){
 }
 
 function mouseClicked(){
-  let x = mouseX - 240, y = mouseY - 200;
+  let x = mouseX - 200, y = mouseY - 200;
   if(Math.pow(x, 2) + Math.pow(y, 2) < 40000){
     // 各種描画処理
     let mode = figSet.getMode();
     if(mode !== 4 && mode !== 6){ figSet.execute(x, y); }
   }else{
     // コンフィグ処理（モード変更処理）
-    x = mouseX - 30, y = mouseY - 410;
-    if(x < 0 || x > 450 || y < 0 || y > 240){ return; }
-    if((x % 150) > 120 || (y % 60) > 40){ return; }
-    let buttonId = 4 * Math.floor(x / 150) + Math.floor(y / 60);
+    x = mouseX - 400, y = mouseY;
+    if(x < 0 || x > 240 || y < 0 || y > 400){ return; }
+    let buttonId = 10 * Math.floor(x / 120) + Math.floor(y / 40);
     // buttonIdがMaxButtonIdの場合はモードチェンジを呼び出す
     // それ以外の場合はたとえば線分モードとの切り替えとかに使うかも
     if(buttonId < MaxButtonId){ figSet.setMode(buttonId); }
