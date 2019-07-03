@@ -203,8 +203,10 @@ class figureSet{
     this.hyperbolicTranslate(dx, dy);
   }
   hyperbolicTranslate(dx, dy){
-    this.points.forEach((p) => {p.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
-    this.lines.forEach((l) => {l.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
+    this.points.forEach((p) => {p.move(['t', dx, dy, 'end']);})
+    this.lines.forEach((l) => {l.move(['t', dx, dy, 'end']);})
+    //this.points.forEach((p) => {p.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
+    //this.lines.forEach((l) => {l.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
   }
   rotateMethod(){
     // 回転（中心の右と左、それぞれについて、上下にドラッグしてそのように回転させる。）
@@ -215,8 +217,10 @@ class figureSet{
     this.hyperbolicRotate(dtheta);
   }
   hyperbolicRotate(dtheta){
-    this.points.forEach((p) => {p.move([{type:'rotate', info:{dtheta:dtheta}}]);})
-    this.lines.forEach((l) => {l.move([{type:'rotate', info:{dtheta:dtheta}}]);})
+    this.points.forEach((p) => {p.move(['r', dtheta, 'end']);})
+    this.lines.forEach((l) => {l.move(['r', dtheta, 'end']);})
+    //this.points.forEach((p) => {p.move([{type:'rotate', info:{dtheta:dtheta}}]);})
+    //this.lines.forEach((l) => {l.move([{type:'rotate', info:{dtheta:dtheta}}]);})
   }
   addIntersectionMethod(x, y){
     // クリックした直線がactiveになり、他の直線をクリックすることで交点が出現する
@@ -493,8 +497,8 @@ class hPoint{
     // (x, y)との距離を返す(Euclid距離)
     return Math.sqrt(Math.pow(this.x - x, 2) + Math.pow(this.y - y, 2));
   }
-  move(dataSet){
-    hypoMove(dataSet, this);
+  move(seq){
+    hypoMove(seq, this);
   }
   render(){
     // 点の描画
@@ -542,10 +546,10 @@ class hLine{
     this.type = newData.type;
     this.info = newData.info;
   }
-  move(dataSet){
+  move(seq){
     // generatorをいじってからregenerate.
-    hypoMove(dataSet, this.generator.p);
-    hypoMove(dataSet, this.generator.q);
+    hypoMove(seq, this.generator.p);
+    hypoMove(seq, this.generator.q);
     this.regenerate();
   }
   render(){
@@ -583,13 +587,28 @@ function hypoRotate(dtheta, p){
 }
 
 // シークエンスで書くならこちら。
-function hypoMove(dataSet, p){
-  // データに基づいて然るべく変換を施す。type: 'translate' or 'rotate', info: dxとかdyとかdthetaとか。
+// 書き直し。たとえば['t', 20, 30, 'r', 0.5, 'end']なら(20, 30)だけtranslateしてから0.5radianだけrotate.わかる？
+function hypoMove(seq, p){
+  // データに基づいて然るべく変換を施す。't':translate, 'r':rotate.
+  let index = 0;
+  while(seq[index] !== 'end'){
+    if(seq[index] === 't'){
+      hypoTranslate(seq[index + 1], seq[index + 2], p);
+      index += 3;
+      continue;
+    }
+    if(seq[index] === 'r'){
+      hypoRotate(seq[index + 1], p);
+      index += 2;
+      continue;
+    }
+  }
+  /*
   for(let i = 0; i < dataSet.length; i++){
     let m = dataSet[i];
     if(m.type === 'translate'){ hypoTranslate(m.info.dx, m.info.dy, p); }
     if(m.type === 'rotate'){ hypoRotate(m.info.dtheta, p); }
-  }
+  }*/
 }
 
 function getIntersection(l1, l2){
@@ -633,8 +652,7 @@ function getIntersection(l1, l2){
   }
   let is = {x:x, y:y}; // intersection.
   // 回転とtranslateを逆に施す。
-  hypoRotate(dtheta, is);
-  hypoTranslate(dx, dy, is);
+  hypoMove(['r', dtheta, 't', dx, dy, 'end'], is);
   return is;
 }
 
@@ -655,8 +673,7 @@ function getMiddlePoint(p, q){
   let r = pSet[1].x;
   let x = 200 * (Math.sqrt(200 + r) - Math.sqrt(200 - r)) / (Math.sqrt(200 + r) + Math.sqrt(200 - r));
   let mid = {x:x, y:0};
-  hypoRotate(dtheta, mid);
-  hypoTranslate(dx, dy, mid);
+  hypoMove(['r', dtheta, 't', dx, dy, 'end'], mid);
   return mid;
 }
 
@@ -693,8 +710,8 @@ function getNormal(p, l){
   }
   pSet.forEach((p) => { hypoTranslate(-du, 0, p); })
   let gp = {x:0, y:100}, gq = {x:0, y:-100};
-  hypoTranslate(du, 0, gp); hypoTranslate(du, 0, gq);
-  hypoRotate(dtheta, gp); hypoRotate(dtheta, gq);
-  hypoTranslate(dx, dy, gp); hypoTranslate(dx, dy, gq);
+  let command = ['t', du, 0, 'r', dtheta, 't', dx, dy, 'end']
+  hypoMove(command, gp);
+  hypoMove(command, gq);
   return {p:gp, q:gq};
 }
