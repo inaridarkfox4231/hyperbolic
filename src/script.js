@@ -603,12 +603,6 @@ function hypoMove(seq, p){
       continue;
     }
   }
-  /*
-  for(let i = 0; i < dataSet.length; i++){
-    let m = dataSet[i];
-    if(m.type === 'translate'){ hypoTranslate(m.info.dx, m.info.dy, p); }
-    if(m.type === 'rotate'){ hypoRotate(m.info.dtheta, p); }
-  }*/
 }
 
 function getIntersection(l1, l2){
@@ -639,7 +633,6 @@ function getIntersection(l1, l2){
   let copyl1 = new hLine(genSet[0], genSet[1]);
   let copyl2 = new hLine(genSet[2], genSet[3]);
   let x;
-  let y = 0;
   if(copyl2.type === 'line'){
     // 双方直線なら原点。
     x = 0;
@@ -650,7 +643,7 @@ function getIntersection(l1, l2){
     // ここでバリデーション. なお交点が2つ以上できることはない。
     if(abs(x1) < 200){ x = x1; }else if(abs(x2) < 200){ x = x2; }else{ return undefined; }
   }
-  let is = {x:x, y:y}; // intersection.
+  let is = {x:x, y:0}; // intersection.
   // 回転とtranslateを逆に施す。
   hypoMove(['r', dtheta, 't', dx, dy, 'end'], is);
   return is;
@@ -708,10 +701,57 @@ function getNormal(p, l){
   }else{
     du = 0;
   }
-  pSet.forEach((p) => { hypoTranslate(-du, 0, p); })
+  pSet.forEach((p) => { hypoTranslate(-du, 0, p); });
   let gp = {x:0, y:100}, gq = {x:0, y:-100};
-  let command = ['t', du, 0, 'r', dtheta, 't', dx, dy, 'end']
+  let command = ['t', du, 0, 'r', dtheta, 't', dx, dy, 'end'];
   hypoMove(command, gp);
   hypoMove(command, gq);
   return {p:gp, q:gq};
+}
+
+function getSymmetricPointWithPoint(c, p){
+  // c:centerに関してpと対称な点の座標を辞書形式で出力する。
+  // 簡単。cを原点にtranslateする操作でpを動かしてからマイナスマイナスすればいい。
+  let q = {x:p.x, y:p.y};
+  let dx = c.x, dy = c.y;
+  hypoTranslate(-dx, -dy, q);
+  q.x = -q.x, q.y = -q.y;
+  hypoTranslate(dx, dy, q);
+  return q;
+}
+
+function getSymmetricLineWithPoint(c, l){
+  // c:centerにより、直線を対称移動する。つまり、180°回転。
+  // generatorをcにより対称やって、返す。
+  let gp = {x:l.generator.p.x, y:l.generator.p.y};
+  let gq = {x:l.generator.q.x, y:l.generator.q.y};
+  let newgp = getSymmetricPointWithPoint(c, gp);
+  let newgq = getSymmetricPointWithPoint(c, gq);
+  return {p:newgp, q:newgq};
+}
+
+function getMirrorPointWithLine(c, p){
+  // cは直線。cに関してpと対称な点をよこす。
+  let gp = {x:c.generator.p.x, y:c.generator.p.y};
+  let gq = {x:c.generator.q.x, y:c.generator.q.y};
+  let r = {x:p.x, y:p.y};
+  // gpを原点に持ってきてからそのときのgqをx軸正方向に置いてそのときのrをy軸反転して逆変換
+  let dx, dy, dtheta;
+  dx = gp.x, dy = gp.y;
+  hypoTranslate(-dx, -dy, gq);
+  dtheta = atan2(gq.y, gq.x);
+  // これでデータはすべて。
+  hypoMove(['t', -dx, -dy, 'r', -dtheta, 'end'], r);
+  r.y = -r.y;
+  hypoMove(['r', dtheta, 't', dx, dy, 'end'], r);
+  return r;
+}
+
+function getMirrorLineWithLine(c, l){
+  // 直線cに関してlと対称な直線を以下略。
+  let gp = {x:l.generator.p.x, y:l.generator.p.y};
+  let gq = {x:l.generator.q.x, y:l.generator.q.y};
+  let newgp = getMirrorPointWithLine(c, gp);
+  let newgq = getMirrorPointWithLine(c, gq);
+  return {p:newgp, q:newgq};
 }
