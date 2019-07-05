@@ -565,7 +565,7 @@ class hPoint{
   }
   render(){
     // 点の描画
-    if(this.active){ fill(0, 100, 100); }else{ fill(0); }
+    if(this.active){ fill(0, calcAlpha()); }else{ fill(0); }
     ellipse(this.x, this.y, 10, 10);
   }
 }
@@ -618,13 +618,21 @@ class hLine{
   render(){
     // 円弧、又はEuclid線分の描画
     let data = this.info;
-    if(this.active){ stroke(70, 100, 100); }else{ stroke(0); }
+    if(this.active){ stroke(0, calcAlpha()); }else{ stroke(0); }
     if(this.type === 'line'){
       line(data.x0, data.y0, data.x1, data.y1);
     }else{
       arc(data.cx, data.cy, data.diam, data.diam, data.theta, data.phi);
     }
   }
+}
+
+function calcAlpha(){
+  return 50 * (1 + Math.cos(Math.PI * frameCount / 20));
+}
+
+function calcColor(){
+  return frameCount % 100;
 }
 
 // 点については、そのまま変換するだけ。
