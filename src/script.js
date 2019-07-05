@@ -8,7 +8,7 @@ const RADIUS_DOUBLE = 40000; // 使うかも
 let buttonPos = [];
 for(let i = 0; i < 10; i++){ buttonPos.push({x:200, y:40 * i - 200}); }
 for(let i = 0; i < 10; i++){ buttonPos.push({x:320, y:40 * i - 200}); }
-const MaxButtonId = 12;
+const MaxButtonId = 13;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -76,6 +76,8 @@ class figureSet{
         this.allClear(); return;
       case 11:
         this.addSymPointWithPointMethod(x, y); return;
+      case 12:
+        this.addSymLineWithPointMethod(x, y); return;
     }
   }
   addPoint(x, y){
@@ -332,14 +334,47 @@ class figureSet{
         // activeな点があるときは, activeな点に関してその点を対称移動。
         let q = this.points[this.activePointIndex];
         //this.addLine(p, q);
-        let sym = getSymmetricPointWithPoint(q, p);
-        this.addPoint(sym.x, sym.y);
+        let symPoint = getSymmetricPointWithPoint(q, p);
+        this.addPoint(symPoint.x, symPoint.y);
         return;
       }
     }else{
       // pがactiveなときはそれを解除する(これがないと他の点を選べない)
       p.inActivate();
       this.activePointIndex = -1;
+    }
+  }
+  addSymLineWithPointMethod(x, y){
+    // 点をクリックしてから線をクリックしてその線を点について点対称移動する感じかな。
+    // おそらくgetNormalとほぼいっしょになる。（点と線が逆だけど）んーーー。。どうしよ。
+    let lineIndex = getClosestFigureIndex(x, y, this.lines);
+    let pointIndex = getClosestFigureIndex(x, y, this.points);
+    if(lineIndex < 0 && pointIndex < 0){ return; }
+    if(this.activePointIndex < 0){
+      // activeな点がないので、点にヒットしてればそれをactivateする, やることはそれだけ。
+      if(pointIndex >= 0){
+        let p = this.points[pointIndex];
+        p.activate();
+        this.activePointIndex = pointIndex;
+      }
+      return;
+    }
+    let p = this.points[this.activePointIndex];
+    if(pointIndex >= 0){
+      // 点が先に反応するの大事。この場合はactiveならそれを取り消す、しかやることがない。
+      if(pointIndex === this.activePointIndex){
+        p.inActivate();
+        this.activePointIndex = -1;
+        return;
+      }
+    }else{
+      // 必然的に線にヒットしている。activePointに関して線を折り返したものを取得して線を追加。
+      let l = this.lines[lineIndex];
+      let symLine = getSymmetricLineWithPoint(p, l);
+      this.addLine(symLine.p, symLine.q);
+      //let normal = getNormal(p, l);
+      //this.addLine(normal.p, normal.q);
+      return;
     }
   }
   getPointIndexById(id){
