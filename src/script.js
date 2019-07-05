@@ -8,7 +8,7 @@ const RADIUS_DOUBLE = 40000; // 使うかも
 let buttonPos = [];
 for(let i = 0; i < 10; i++){ buttonPos.push({x:200, y:40 * i - 200}); }
 for(let i = 0; i < 10; i++){ buttonPos.push({x:320, y:40 * i - 200}); }
-const MaxButtonId = 11;
+const MaxButtonId = 12;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -74,6 +74,8 @@ class figureSet{
         this.addNormalLineMethod(x, y); return;
       case 10:
         this.allClear(); return;
+      case 11:
+        this.addSymPointWithPointMethod(x, y); return;
     }
   }
   addPoint(x, y){
@@ -93,12 +95,10 @@ class figureSet{
     let p = this.points[index]; // 該当する点を抜き出す処理
     if(!p.active){
       p.activate();
-      //p.active = true;
       if(this.activePointIndex >= 0){ this.points[this.activePointIndex].active = false; }
       this.activePointIndex = index;
     }else{
       this.removePoint(p.id); // id値が'id'の点を削除
-      //this.points.splice(id, 1); // 該当する点を削除
       this.activePointIndex = -1;
     }
   }
@@ -126,7 +126,6 @@ class figureSet{
     }else{
       // pがactiveなときはそれを解除する(これがないと他の点を選べない)
       p.inActivate();
-      //p.active = false;
       this.activePointIndex = -1;
     }
   }
@@ -300,7 +299,7 @@ class figureSet{
     }
     let l = this.lines[this.activeLineIndex];
     if(pointIndex >= 0){
-      // 垂線を引く。
+      // 垂線を引く。点が先に反応することで垂直2等分線などが引ける。
       let p = this.points[pointIndex];
       let normal = getNormal(p, l);
       this.addLine(normal.p, normal.q);
@@ -312,6 +311,35 @@ class figureSet{
         this.activeLineIndex = -1;
         return;
       }
+    }
+  }
+  addSymPointWithPointMethod(x, y){
+    // まず(x, y)に近い点のindexを取得。
+    // non-Activeの場合、その点をactiveにして終了。
+    // activeの場合、その点がactiveならactiveを解除して終了。
+    // activeでないなら、その点とactivePointについて対称な点を追加する。
+    let index = getClosestFigureIndex(x, y, this.points);
+    if(index < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
+    let p = this.points[index]; // 該当する点を抜き出す処理
+    if(!p.active){
+      // pがnon-activeのとき
+      if(this.activePointIndex < 0){
+        // activeな点がない時はその点をactiveにしておしまい
+        p.activate();
+        this.activePointIndex = index;
+        return;
+      }else{
+        // activeな点があるときは, activeな点に関してその点を対称移動。
+        let q = this.points[this.activePointIndex];
+        //this.addLine(p, q);
+        let sym = getSymmetricPointWithPoint(q, p);
+        this.addPoint(sym.x, sym.y);
+        return;
+      }
+    }else{
+      // pがactiveなときはそれを解除する(これがないと他の点を選べない)
+      p.inActivate();
+      this.activePointIndex = -1;
     }
   }
   getPointIndexById(id){
