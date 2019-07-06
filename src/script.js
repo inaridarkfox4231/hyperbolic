@@ -41,9 +41,16 @@ function draw(){
 
 class figureSet{
   constructor(){
+    // ここをfiguresにして、点の個数を持たせる。で、点を追加するときは途中に挿入する。
+    // this.figures.splice('点の個数', 0, '追加する点オブジェクト')でOK.
+    // ちなみに0のところを1以上のmにするとそこからm個が配列の形で返り値として送出され、
+    // それらが排除されてそこにobjが入る。複数入れるときは...[a, b, c]みたいにする。
+    // mが大きすぎるときは末尾までに切り詰められる。
+    // 例：a=[0, 1, 2, 3, 4]; a.splice(2, 2, ...[99, 100]); 返り値：[2, 3]でaは[0, 1, 99, 100, 4]になる。
     this.points = [];
     this.lines = [];
     this.drawMode = 0; // drawModeはこっちもちでいいんじゃない。
+    // ここをactiveFigureIdにしたいんだけどな。
     this.activePointIndex = -1; // activeになってる点のindex.(activePointIndexの方がいいかも)
     this.activeLineIndex = -1;  // activeになってる直線のindex.(あれ・・idとどっちがいいんだろ・・)
     // maxIdを持たせるのは廃止
