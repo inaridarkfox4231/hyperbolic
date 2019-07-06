@@ -34,7 +34,7 @@ function draw(){
   ellipse(0, 0, 400, 400);
   // translateモードは毎フレーム。
   if(figSet.getMode() === 4){ figSet.hyperbolicTranslateMethod(); }
-  if(figSet.getMode() === 6){ figSet.rotateMethod(); }
+  if(figSet.getMode() === 6){ figSet.hyperbolicRotateMethod(); }
   figSet.render();
   drawConfig();
 }
@@ -47,12 +47,15 @@ class figureSet{
     // それらが排除されてそこにobjが入る。複数入れるときは...[a, b, c]みたいにする。
     // mが大きすぎるときは末尾までに切り詰められる。
     // 例：a=[0, 1, 2, 3, 4]; a.splice(2, 2, ...[99, 100]); 返り値：[2, 3]でaは[0, 1, 99, 100, 4]になる。
-    this.points = [];
-    this.lines = [];
+    this.figures = [];
+    this.maxPointIndex = 0;
+    //this.points = [];
+    //this.lines = [];
     this.drawMode = 0; // drawModeはこっちもちでいいんじゃない。
     // ここをactiveFigureIdにしたいんだけどな。
-    this.activePointIndex = -1; // activeになってる点のindex.(activePointIndexの方がいいかも)
-    this.activeLineIndex = -1;  // activeになってる直線のindex.(あれ・・idとどっちがいいんだろ・・)
+    this.activeFigureId = -1;
+    //this.activePointIndex = -1; // activeになってる点のindex.(activePointIndexの方がいいかも)
+    //this.activeLineIndex = -1;  // activeになってる直線のindex.(あれ・・idとどっちがいいんだろ・・)
     // maxIdを持たせるのは廃止
     //this.maxPointId = 0; // 次に設定する点のid値(偶数)
     //this.maxLineId = 1; // 次に設定する直線のid値(奇数)
@@ -93,57 +96,80 @@ class figureSet{
   clickAction(x, y, first, second){
     // クリックで何かしらやるときのメソッドをまとめる感じ。first, secondは'p','l','pl'のどれか。
     // firstはactiveになるオブジェクトの種類、secondはactiveがあるときにクリックするオブジェクトの種類。
+    // とりあえず書き直してから。
   }
   addPoint(x, y){
     // (x, y)は位置、activeは赤くなる.
     // id値を設定して番号の更新が不要になるようにした。
     let newPoint = new hPoint(x, y);
     newPoint.setId();
-    this.maxPointId += 2;
-    this.points.push(newPoint);
+    //this.maxPointId += 2;
+    this.figures.splice(this.maxPointIndex, 0, newPoint); // 点は必ず直線の前にしたい。
+    this.maxPointIndex++;
+    //this.points.push(newPoint);
     console.log("(" + x + ", " + y + ")");
     console.log('pointId = ' + newPoint.id);
   }
   removePointMethod(x, y){
     // (x, y)に最も近い点を探す
     // その点との距離が15以下ならその点を削除する
-    let index = getClosestFigureIndex(x, y, this.points);
-    if(index < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
-    let p = this.points[index]; // 該当する点を抜き出す処理
-    if(!p.active){
-      p.activate();
-      if(this.activePointIndex >= 0){ this.points[this.activePointIndex].active = false; }
-      this.activePointIndex = index;
+    let id = this.getClosestFigureId(x, y);
+    if(id < 0){ return; } // クリック位置にオブジェクトがない時
+    let index = this.getIndexById(id);
+    let fig = this.figures[index]; // 図形オブジェクト（点か、直線か）
+    if(this.activeFigureId < 0){
+      // activeなものが無い時はfigが点の場合に限り処理、点をactivateして終了。
+      if(!(id % FigureKind === 0)){ return; } // 点以外に用はない
+      fig.activate();
+      this.activeFigureId = id;
     }else{
-      this.removePoint(p.id); // id値が'id'の点を削除
-      this.activePointIndex = -1;
+      // activeなものがあるときはそれとidを比較して処理を分ける
+      if(this.activeFigureId === id){
+        this.removeFigure(id); // 点をidを利用して排除。
+        this.activeFigureId = -1;
+      }else{
+        // クリックした点を代りにactiveにする。
+        if(!(id % FigureKind === 0)){ return; } // 反応していいのは点だけ
+        let activeFigureIndex = this.getIndexById(this.activeFigureId);
+        let activeFigure = this.figures[activeFigureIndex];
+        activeFigure.inActivate();
+        fig.activate();
+        this.activeFigureId = id;
+      }
+      //this.removePoint(p.id); // id値が'id'の点を削除
+      //this.activePointIndex = -1;
     }
   }
-  removePoint(id){
-    let index = this.getPointIndexById(id);
-    if(index >= 0){ this.points.splice(index, 1); }
+  removeFigure(id){
+    // 図形を排除する（点の場合はthis.maxPointIndexを減らす）
+    if(id < 0){ return; }
+    let index = this.getIndexById(id);
+    this.figures.splice(index, 1); // indexのところにあるオブジェクトを排除
+    if(id % FigureKind === 0){ this.maxPointIndex--; } // 点を排除した場合はその数を減らす
   }
   addLineMethod(x, y){
-    let index = getClosestFigureIndex(x, y, this.points);
-    if(index < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
-    let p = this.points[index]; // 該当する点を抜き出す処理
-    if(!p.active){
-      // pがnon-activeのとき
-      if(this.activePointIndex < 0){
-        // activeな点がない時はその点をactiveにしておしまい
-        p.activate();
-        this.activePointIndex = index;
-        return;
-      }else{
-        // activeな点があるときはその点とを結ぶ直線を引く
-        let q = this.points[this.activePointIndex];
-        this.addLine(p, q);
-        return;
-      }
+    // 点をactivateしてactiveな点とクリックした点を直線で結ぶ
+    let id = this.getClosestFigureId(x, y, this.points);
+    if(id < 0){ return; }
+    let index = this.getIndexById(id);
+    let fig = this.figures[index]; // 図形オブジェクト（点か、直線か）
+    if(this.activeFigureId < 0){
+      // 場がnon-active. クリックした点をactivateして終了。
+      if(!(id % FigureKind === 0)){ return; } // 点以外に用はない
+      fig.activate();
+      this.activeFigureId = id;
     }else{
-      // pがactiveなときはそれを解除する(これがないと他の点を選べない)
-      p.inActivate();
-      this.activePointIndex = -1;
+      if(this.activeFigureId === id){
+        // 場がactiveでクリック対象がactiveならそれを解除して終了
+        fig.inActivate();
+        this.activeFigureId = -1;
+      }else{
+        // そうでない時（activeとnon-active）はクリックした点とactiveな点を結ぶ直線を追加
+        if(!(id % FigureKind === 0)){ return; } // クリックしたのは点でないといけない。
+        let activeFigureIndex = this.getIndexById(this.activeFigureId);
+        let activeFigure = this.figures[activeFigureIndex];
+        this.addLine(activeFigure, fig);
+      }
     }
   }
   addLine(p, q){
@@ -154,58 +180,72 @@ class figureSet{
     let newLine = new hLine(p, q);
     newLine.setId();
     this.maxLineId += 2;
-    this.lines.push(newLine);
+    this.figures.push(newLine);
+    //this.lines.push(newLine);
     console.log('lineId = ' + newLine.id);
   }
   removeLineMethod(x, y){
     // 直線を消す。
-    let index = getClosestFigureIndex(x, y, this.lines);
+    let id = this.getClosestFigureId(x, y);
+    //let index = getClosestFigureIndex(x, y, this.lines);
     //console.log(index);
-    if(index < 0){ return; } // 直線が存在しない時、またはクリック位置に近い直線がない時。
-    let l = this.lines[index]; // 該当する直線を抜き出す処理
-    if(!l.active){
-      l.activate();
-      if(this.activeLineIndex >= 0){ this.lines[this.activeLineIndex].active = false; }
-      this.activeLineIndex = index;
+    if(id < 0){ return; } // 直線が存在しない時、またはクリック位置に近い直線がない時。
+    let index = this.getIndexById(id);
+    let fig = this.figures[index];
+    //let l = this.lines[index]; // 該当する直線を抜き出す処理
+    if(this.activeFigureId < 0){
+      if(!(id % FigureKind === 1)){ return; } // 直線以外はNO.
+      // activateして終了。
+      fig.activate();
+      this.activeFigureId = id;
     }else{
-      this.removeLine(l.id);
-      this.activeLineIndex = -1;
+      if(this.activeFigureId === id){
+        // 直線を消す。
+        this.removeFigure(id);
+        this.activeFigureId = -1;
+      }else{
+        // 他の直線（クリックしたやつ）をactivateする。
+        if(!(id % FigureKind === 1)){ return; } // 反応していいのは直線だけ
+        let activeFigureIndex = this.getIndexById(this.activeFigureId);
+        let activeFigure = this.figures[activeFigureIndex];
+        activeFigure.inActivate();
+        fig.activate();
+        this.activeFigureId = id;
+      }
     }
-    //return;
   }
-  removeLine(id){
+  /*removeLine(id){
     let index = this.getLineIndexById(id);
     if(index >= 0){ this.lines.splice(index, 1); }
-  }
+  }*/
   centeringMethod(x, y){
     // 指定した点が中央に来るようにtranslateが成される。これがあれば中央に点を置くメソッド要らないね・・
-    let index = getClosestFigureIndex(x, y, this.points);
-    if(index < 0){ return; }
-    let p = this.points[index];
+    let id = this.getClosestFigureId(x, y);
+    if(id < 0 || !(id % FigureKind === 0)){ return; }
+    let index = this.getIndexById(id);
+    let p = this.figures[index];
     this.hyperbolicTranslate(-p.x, -p.y);
   }
   inActivate(){
     // activeをキャンセル
-    this.activePointIndex = -1;
-    this.activeLineIndex = -1;
-    this.points.forEach((p) => {p.inActivate();})
-    this.lines.forEach((l) => {l.inActivate();})
+    //this.activePointIndex = -1;
+    //this.activeLineIndex = -1;
+    this.activeFigureId = -1;
+    this.figures.forEach((fig) => { fig.inActivate(); })
+    //this.points.forEach((p) => {p.inActivate();})
+    //this.lines.forEach((l) => {l.inActivate();})
   }
   render(){
     push();
-    this.points.forEach((p) => {
-      // 点の描画
-      p.render();
-    })
+    // 点の描画
+    for(let i = 0; i < this.maxPointIndex; i++){ this.figures[i].render(); }
     pop();
     push();
     noFill();
     stroke(0);
     strokeWeight(1.0);
-    this.lines.forEach((l) => {
-      // 円弧、又はEuclid線分の描画
-      l.render();
-    })
+    // 直線の描画
+    for(let i = this.maxPointIndex; i < this.figures.length; i++){ this.figures[i].render(); }
     pop();
   }
   hyperbolicTranslateMethod(){
@@ -219,12 +259,13 @@ class figureSet{
     this.hyperbolicTranslate(dx, dy);
   }
   hyperbolicTranslate(dx, dy){
-    this.points.forEach((p) => {p.move(['t', dx, dy, 'end']);})
-    this.lines.forEach((l) => {l.move(['t', dx, dy, 'end']);})
-    //this.points.forEach((p) => {p.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
-    //this.lines.forEach((l) => {l.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
+    this.figures.forEach((fig) => {fig.move(['t', dx, dy, 'end']);})
   }
-  rotateMethod(){
+  //this.points.forEach((p) => {p.move(['t', dx, dy, 'end']);})
+  //this.lines.forEach((l) => {l.move(['t', dx, dy, 'end']);})
+  //this.points.forEach((p) => {p.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
+  //this.lines.forEach((l) => {l.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
+  hyperbolicRotateMethod(){
     // 回転（中心の右と左、それぞれについて、上下にドラッグしてそのように回転させる。）
     if(!mouseIsPressed || mouseX > 400){ return; }
     // dyを回転角に変換する。
@@ -233,165 +274,174 @@ class figureSet{
     this.hyperbolicRotate(dtheta);
   }
   hyperbolicRotate(dtheta){
-    this.points.forEach((p) => {p.move(['r', dtheta, 'end']);})
-    this.lines.forEach((l) => {l.move(['r', dtheta, 'end']);})
-    //this.points.forEach((p) => {p.move([{type:'rotate', info:{dtheta:dtheta}}]);})
-    //this.lines.forEach((l) => {l.move([{type:'rotate', info:{dtheta:dtheta}}]);})
+    this.figures.forEach((fig) => {fig.move(['r', dtheta, 'end']);})
   }
+  //this.points.forEach((p) => {p.move([{type:'rotate', info:{dtheta:dtheta}}]);})
+  //this.lines.forEach((l) => {l.move([{type:'rotate', info:{dtheta:dtheta}}]);})
   addIntersectionMethod(x, y){
     // クリックした直線がactiveになり、他の直線をクリックすることで交点が出現する
-    let index = getClosestFigureIndex(x, y, this.lines);
-    if(index < 0){ return; } // 直線が存在しない時、またはクリック位置に近い直線がない時。
-    let l1 = this.lines[index]; // 該当する直線を抜き出す処理
-    if(!l1.active){
-      // l1がnon-activeのとき
-      if(this.activeLineIndex < 0){
-        // activeな直線がない時はその直線をactiveにしておしまい
-        l1.activate();
-        this.activeLineIndex = index;
-        return;
-      }else{
-        // activeな直線があるときはその直線との交点が、あれば、追加。なければなにもしない。
-        let l2 = this.lines[this.activeLineIndex];
-        let p = getIntersection(l1, l2);
-        if(p === undefined){ return; }
-        //console.log("(" + p.x + ", " + p.y + ")");
-        this.addPoint(p.x, p.y);
-        return;
-      }
+    let id = this.getClosestFigureId(x, y);
+    if(id < 0){ return; }
+    let index = this.getIndexById(id);
+    let fig = this.figures[index];
+    if(this.activeFigureId < 0){
+      // 場がnon-activeのときは直線をactivateするだけ
+      if(!(id % FigureKind === 1)){ return; }
+      fig.activate();
+      this.activeFigureId = id;
     }else{
-      // l1がactiveなときはそれを解除する(これがないと他の直線を選べない)
-      l1.inActivate();
-      //p.active = false;
-      this.activeLineIndex = -1;
+      if(this.activeFigureId === id){
+        // activeなのをクリックしたら解除
+        fig.inActivate();
+        this.activeFigureId = -1;
+      }else{
+        // activeでない直線をクリックするとintersectionができる（出来る場合に）
+        if(!(id % FigureKind === 1)){ return; } // 反応していいのは直線だけ
+        let activeFigureIndex = this.getIndexById(this.activeFigureId);
+        let activeFigure = this.figures[activeFigureIndex];
+        let p = getIntersection(activeFigure, fig);
+        if(p === undefined){ return; }
+        this.addPoint(p.x, p.y);
+      }
     }
   }
   addMiddlePointMethod(x, y){
-    // 中点を取る処理。(ただし双曲距離)
-    let index = getClosestFigureIndex(x, y, this.points);
-    if(index < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
-    let p = this.points[index]; // 該当する点を抜き出す処理
-    if(!p.active){
-      // pがnon-activeのとき
-      if(this.activePointIndex < 0){
-        // activeな点がない時はその点をactiveにしておしまい
-        p.activate();
-        this.activePointIndex = index;
-        return;
-      }else{
-        // activeな点があるときはその点との中点を追加する。んー・・無駄が多いね・・
-        let q = this.points[this.activePointIndex];
-        let mid = getMiddlePoint(p, q);
-        this.addPoint(mid.x, mid.y);
-        return;
-      }
+    // 中点を取る処理。(ただし双曲距離) 基本的にaddLineといっしょ。
+    let id = this.getClosestFigureId(x, y, this.points);
+    if(id < 0){ return; }
+    let index = this.getIndexById(id);
+    let fig = this.figures[index]; // 図形オブジェクト（点か、直線か）
+    if(this.activeFigureId < 0){
+      // 場がnon-active. クリックした点をactivateして終了。
+      if(!(id % FigureKind === 0)){ return; } // 点以外に用はない
+      fig.activate();
+      this.activeFigureId = id;
     }else{
-      // pがactiveなときはそれを解除する(これがないと他の点を選べない)
-      p.inActivate();
-      //p.active = false;
-      this.activePointIndex = -1;
+      if(this.activeFigureId === id){
+        // 場がactiveでクリック対象がactiveならそれを解除して終了
+        fig.inActivate();
+        this.activeFigureId = -1;
+      }else{
+        // そうでない時（activeとnon-active）はクリックした点とactiveな点を結ぶ直線を追加
+        if(!(id % FigureKind === 0)){ return; } // クリックしたのは点でないといけない。
+        let activeFigureIndex = this.getIndexById(this.activeFigureId);
+        let activeFigure = this.figures[activeFigureIndex];
+        let mid = getMiddlePoint(activeFigure, fig);
+        this.addPoint(mid.x, mid.y);
+      }
     }
   }
   addNormalLineMethod(x, y){
-    // クリックした直線がactiveになり、その状態で点をクリックすると垂線が追加される。
-    // 線がactiveなときに点をクリックすると引かれるけど・・
-    // 先に線をサーチしてそれがactiveならそれをinActivateするのを優先する。
-    // そのうえで点の方をサーチして点が見つかれば垂線を引く感じ。
-    // 違う、これだと点が反応してくれない。
-    // クリックで反応する直線はactiveLineがない場合：すべて、ある場合：activeなやつだけ。
-    // だからまずactiveLineIndexを見てこれが-1ならlineだけ見てactivateするか否か判断してreturn.
-    // 次に>=0の場合はまず点を見てOKなら垂線を引いてreturn.
-    // >=0で点がない場合、activeな線をクリックしているならそれをinActivateしてreturnだ。完璧！
-    let lineIndex = getClosestFigureIndex(x, y, this.lines);
-    let pointIndex = getClosestFigureIndex(x, y, this.points);
-    if(lineIndex < 0 && pointIndex < 0){ return; }
-    if(this.activeLineIndex < 0){
-      // activeな線がないので、線にヒットしてればそれをactivateする, やることはそれだけ。
-      if(lineIndex >= 0){
-        let l = this.lines[lineIndex];
-        l.activate();
-        this.activeLineIndex = lineIndex;
-      }
-      return;
-    }
-    let l = this.lines[this.activeLineIndex];
-    if(pointIndex >= 0){
-      // 垂線を引く。点が先に反応することで垂直2等分線などが引ける。
-      let p = this.points[pointIndex];
-      let normal = getNormal(p, l);
-      this.addLine(normal.p, normal.q);
-      return;
+    // クリックした直線がactiveになり、その状態で点をクリックすると、
+    // その点を通りactiveな直線に直交する直線が追加される。
+    // 又は、点をクリックしてから直線をクリックすることもできる（はず）。
+    let id = this.getClosestFigureId(x, y, this.points);
+    if(id < 0){ return; }
+    let index = this.getIndexById(id);
+    let fig = this.figures[index]; // 図形オブジェクト（点か、直線か）
+    if(this.activeFigureId < 0){
+      // 場がnon-activeなときは点か線をactivate.
+      if(id % FigureKind > 1){ return; } // 今の場合だと、なんでもあり。
+      fig.activate();
+      this.activeFigureId = id;
     }else{
-      // 点にヒットしていない時はactiveな線にヒットしてればそれを戻すし、さもなくばすることは何もない。
-      if(lineIndex === this.activeLineIndex){
-        l.inActivate();
-        this.activeLineIndex = -1;
-        return;
+      if(this.activeFigureId === id){
+        // リセット。
+        fig.inActivate();
+        this.activeFigureId = -1;
+      }else{
+        // 点がactiveなときは直線、直線がactiveなときは点が反応する感じで。(下の式で第1項が0か1.)
+        if(!((this.activeFigureId % FigureKind) + (id % FigureKind) === 1)){ return; }
+        let activeFigureIndex = this.getIndexById(this.activeFigureId);
+        let activeFigure = this.figures[activeFigureIndex];
+        let normal;
+        // どっちが点なのか判断している。
+        if(id % FigureKind === 0){ normal = getNormal(fig, activeFigure); }
+        else{ normal = getNormal(activeFigure, fig); }
+        this.addLine(normal.p, normal.q);
       }
     }
   }
   addSymPointWithPointMethod(x, y){
-    // まず(x, y)に近い点のindexを取得。
-    // non-Activeの場合、その点をactiveにして終了。
-    // activeの場合、その点がactiveならactiveを解除して終了。
-    // activeでないなら、その点とactivePointについて対称な点を追加する。
-    let index = getClosestFigureIndex(x, y, this.points);
-    if(index < 0){ return; } // 点が存在しない時、またはクリック位置に点がない時。
-    let p = this.points[index]; // 該当する点を抜き出す処理
-    if(!p.active){
-      // pがnon-activeのとき
-      if(this.activePointIndex < 0){
-        // activeな点がない時はその点をactiveにしておしまい
-        p.activate();
-        this.activePointIndex = index;
-        return;
-      }else{
-        // activeな点があるときは, activeな点に関してその点を対称移動。
-        let q = this.points[this.activePointIndex];
-        //this.addLine(p, q);
-        let symPoint = getSymmetricPointWithPoint(q, p);
-        this.addPoint(symPoint.x, symPoint.y);
-        return;
-      }
+    // activeな点に関して点や直線を点対称移動する。activeにできるのは点だけ。
+    // って思ったんだけど直線でもいいやね。symmetricでいいんじゃない？
+    let id = this.getClosestFigureId(x, y, this.points);
+    if(id < 0){ return; }
+    let index = this.getIndexById(id);
+    let fig = this.figures[index]; // 図形オブジェクト（点か、直線か）
+    if(this.activeFigureId < 0){
+      // 「それ」をactiveにする。点か、直線。
+      if(id % FigureKind > 1){ return; }
+      fig.activate();
+      this.activeFigureId = id;
     }else{
-      // pがactiveなときはそれを解除する(これがないと他の点を選べない)
-      p.inActivate();
-      this.activePointIndex = -1;
+      if(this.activeFigureId === id){
+        // activeをクリックしたらキャンセル～
+        fig.inActivate();
+        this.activeFigureId = -1;
+      }else{
+        if(id % FigureKind > 1){ return; }
+        let activeFigureIndex = this.getIndexById(this.activeFigureId);
+        let activeFigure = this.figures[activeFigureIndex];
+        // activeFigureに関してfigを対称移動する。
+        this.addSymmetricFigure(activeFigure, fig);
+      }
+    }
+  }
+  addSymmetricFigure(f1, f2){
+    if(f1.id % FigureKind > 1 || f2.id % FigureKind > 1){ return; }
+    let symFig;
+    // 4つの場合に分ける。
+    if(f1.id % FigureKind === 0){
+      // 点対称
+      if(f2.id % FigureKind === 0){ symFig = getSymmetricPointWithPoint(f1, f2); }
+      else{ symFig = getSymmetricLineWithPoint(f1, f2); }
+    }else{
+      // 線対称
+      if(f2.id % FigureKind === 0){ symFig = getMirrorPointWithLine(f1, f2); }
+      else{ symFig = getMirrorLineWithLine(f1, f2); }
+    }
+    if(f2.id % FigureKind === 0){
+      this.addPoint(symFig.x, symFig.y);
+    }else{
+      this.addLine(symFig.p, symFig.q);
     }
   }
   addSymLineWithPointMethod(x, y){
-    // 点をクリックしてから線をクリックしてその線を点について点対称移動する感じかな。
-    // おそらくgetNormalとほぼいっしょになる。（点と線が逆だけど）んーーー。。どうしよ。
-    let lineIndex = getClosestFigureIndex(x, y, this.lines);
-    let pointIndex = getClosestFigureIndex(x, y, this.points);
-    if(lineIndex < 0 && pointIndex < 0){ return; }
-    if(this.activePointIndex < 0){
-      // activeな点がないので、点にヒットしてればそれをactivateする, やることはそれだけ。
-      if(pointIndex >= 0){
-        let p = this.points[pointIndex];
-        p.activate();
-        this.activePointIndex = pointIndex;
-      }
-      return;
-    }
-    let p = this.points[this.activePointIndex];
-    if(pointIndex >= 0){
-      // 点が先に反応するの大事。この場合はactiveならそれを取り消す、しかやることがない。
-      if(pointIndex === this.activePointIndex){
-        p.inActivate();
-        this.activePointIndex = -1;
-        return;
-      }
-    }else{
-      // 必然的に線にヒットしている。activePointに関して線を折り返したものを取得して線を追加。
-      let l = this.lines[lineIndex];
-      let symLine = getSymmetricLineWithPoint(p, l);
-      this.addLine(symLine.p, symLine.q);
-      //let normal = getNormal(p, l);
-      //this.addLine(normal.p, normal.q);
-      return;
-    }
+    // このメソッドは廃止される予定です。
+    return;
   }
+  getClosestFigureId(x, y){
+    // クリック位置に最も近いオブジェクトのidを返す。点が優先。
+    if(this.figures.length === 0){ return -1; }
+    let minPointDist = 400; // 一番近くの点との距離
+    let minLineDist = 400; // 一番近くの線との距離
+    let pointId = -1;
+    let lineId = -1;
+    for(let i = 0; i < this.maxPointIndex; i++){
+      let p = this.figures[i];
+      let dist = p.getDist(x, y);
+      if(dist < minPointDist){ minPointDist = dist; pointId = p.id; }
+    }
+    for(let i = this.maxPointIndex; i < this.figures.length; i++){
+      let l = this.figures[i];
+      let dist = l.getDist(x, y);
+      if(dist < minLineDist){ minLineDist = dist; lineId = l.id; }
+    }
+    if(pointId >= 0 && minPointDist <= 15){ return pointId; } // 点を先に判定、OKなら返す。
+    if(lineId >= 0 && minLineDist <= 10){ return lineId; } // 線を次に判定、OKなら返す。
+    return -1;
+    //if(index < 0 || minDist > 15){ return -1; }
+    //return index;
+  }
+  getIndexById(id){
+    // idからindexを取得。そうか、idってばらばらだっけ。総当たりでいいです。
+    for(let index = 0; index < this.figures.length; index++){
+      if(this.figures[index].id === id){ return index; }
+    }
+    return -1;
+  }
+  /*
   getPointIndexById(id){
     // idから該当する点の通し番号を取得
     for(let index = 0; index < this.points.length; index++){
@@ -406,10 +456,13 @@ class figureSet{
     }
     return -1;
   }
+  */
   allClear(){
-    // 円内をクリックするとすべての図形が消え失せる
-    this.points = [];
-    this.lines = [];
+    // 円内をクリックするとすべての図形が消え失せる(activeはこのモードにしたとき既に外れている)
+    this.figures = [];
+    this.maxPointIndex = 0;
+    //this.points = [];
+    //this.lines = [];
     // idリセット
     hPoint.id = 0;
     hLine.id = 1;
@@ -447,6 +500,8 @@ function mouseClicked(){
   return;
 }
 
+// closestはメソッドにしようね。あと欲しいのはid.
+/*
 function getClosestFigureIndex(x, y, targetSet){
   // ひとつにまとめたい(targetSetに点の配列や直線の配列を入れる).
   if(targetSet.length === 0){ return -1; }
@@ -458,7 +513,7 @@ function getClosestFigureIndex(x, y, targetSet){
   }
   if(index < 0 || minDist > 15){ return -1; }
   return index;
-}
+}*/
 
 // lのところ、pとか、一般化するべきかな・・
 function calcDist(l, x, y){
