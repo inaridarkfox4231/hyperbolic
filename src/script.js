@@ -10,7 +10,7 @@ const FigureKind = 2; // 点と線の2種類という意味、これをidに加�
 let buttonPos = [];
 for(let i = 0; i < 10; i++){ buttonPos.push({x:200, y:40 * i - 200}); }
 for(let i = 0; i < 10; i++){ buttonPos.push({x:320, y:40 * i - 200}); }
-const MaxButtonId = 13;
+const MaxButtonId = 11;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -33,8 +33,8 @@ function draw(){
   fill(70);
   ellipse(0, 0, 400, 400);
   // translateモードは毎フレーム。
-  if(figSet.getMode() === 4){ figSet.hyperbolicTranslateMethod(); }
-  if(figSet.getMode() === 6){ figSet.hyperbolicRotateMethod(); }
+  if(figSet.getMode() === 3){ figSet.hyperbolicTranslateMethod(); }
+  if(figSet.getMode() === 5){ figSet.hyperbolicRotateMethod(); }
   figSet.render();
   drawConfig();
 }
@@ -49,16 +49,9 @@ class figureSet{
     // 例：a=[0, 1, 2, 3, 4]; a.splice(2, 2, ...[99, 100]); 返り値：[2, 3]でaは[0, 1, 99, 100, 4]になる。
     this.figures = [];
     this.maxPointIndex = 0;
-    //this.points = [];
-    //this.lines = [];
     this.drawMode = 0; // drawModeはこっちもちでいいんじゃない。
     // ここをactiveFigureIdにしたいんだけどな。
     this.activeFigureId = -1;
-    //this.activePointIndex = -1; // activeになってる点のindex.(activePointIndexの方がいいかも)
-    //this.activeLineIndex = -1;  // activeになってる直線のindex.(あれ・・idとどっちがいいんだろ・・)
-    // maxIdを持たせるのは廃止
-    //this.maxPointId = 0; // 次に設定する点のid値(偶数)
-    //this.maxLineId = 1; // 次に設定する直線のid値(奇数)
   }
   getMode(){ return this.drawMode; }
   setMode(newMode){
@@ -72,25 +65,21 @@ class figureSet{
       case 0:
         this.addPoint(x, y); return;
       case 1:
-        this.removePointMethod(x, y); return;
-      case 2:
         this.addLineMethod(x, y); return;
-      case 3:
-        this.removeLineMethod(x, y); return;
-      case 5:
+      case 2:
+        this.removeFigureMethod(x, y); return;
+      case 4:
         this.centeringMethod(x, y); return;
-      case 7:
+      case 6:
         this.addIntersectionMethod(x, y); return;
-      case 8:
+      case 7:
         this.addMiddlePointMethod(x, y); return;
-      case 9:
+      case 8:
         this.addNormalLineMethod(x, y); return;
-      case 10:
+      case 9:
         this.allClear(); return;
-      case 11:
-        this.addSymPointWithPointMethod(x, y); return;
-      case 12:
-        this.addSymLineWithPointMethod(x, y); return;
+      case 10:
+        this.addSymmetricFigureMethod(x, y); return;
     }
   }
   clickAction(x, y, first, second){
@@ -103,14 +92,12 @@ class figureSet{
     // id値を設定して番号の更新が不要になるようにした。
     let newPoint = new hPoint(x, y);
     newPoint.setId();
-    //this.maxPointId += 2;
     this.figures.splice(this.maxPointIndex, 0, newPoint); // 点は必ず直線の前にしたい。
     this.maxPointIndex++;
-    //this.points.push(newPoint);
     console.log("(" + x + ", " + y + ")");
     console.log('pointId = ' + newPoint.id);
   }
-  removePointMethod(x, y){
+  removeFigureMethod(x, y){
     // (x, y)に最も近い点もしくは直線を取得してactivateする。もしactiveなら削除する。
     let id = this.getClosestFigureId(x, y);
     if(id < 0){
@@ -121,7 +108,6 @@ class figureSet{
     let fig = this.figures[index]; // 図形オブジェクト（点か、直線か）
     if(this.activeFigureId < 0){
       // activeなものが無い時はfigが点の場合に限り処理、点をactivateして終了。
-      // if(!(id % FigureKind === 0)){ return; } // バリデーションは不要。
       fig.activate();
       this.activeFigureId = id;
     }else{
@@ -131,7 +117,6 @@ class figureSet{
         this.activeFigureId = -1;
       }else{
         // クリックした点を代りにactiveにする。
-        // if(!(id % FigureKind === 0)){ return; } // 不要。
         let activeFigureIndex = this.getIndexById(this.activeFigureId);
         let activeFigure = this.figures[activeFigureIndex];
         activeFigure.inActivate();
@@ -184,21 +169,14 @@ class figureSet{
     newLine.setId();
     this.maxLineId += 2;
     this.figures.push(newLine);
-    //this.lines.push(newLine);
     console.log('lineId = ' + newLine.id);
   }
-  removeLineMethod(x, y){
-    // 直線を消す。// このメソッドは廃止される予定です。
-    return; // remove系はひとつにまとめる予定。
-  }
-  /*removeLine(id){
-    let index = this.getLineIndexById(id);
-    if(index >= 0){ this.lines.splice(index, 1); }
-  }*/
   centeringMethod(x, y){
     // 指定した点が中央に来るようにtranslateが成される。これがあれば中央に点を置くメソッド要らないね・・
     let id = this.getClosestFigureId(x, y);
+    console.log(id);
     if(id < 0 || !(id % FigureKind === 0)){ return; }
+    console.log("centering");
     let index = this.getIndexById(id);
     let p = this.figures[index];
     this.hyperbolicTranslate(-p.x, -p.y);
@@ -206,14 +184,9 @@ class figureSet{
   inActivate(){
     // activeをキャンセル. activeなのは高々1つ。
     if(this.activeFigureId < 0){ return; } // non-activeならやることなし。
-    //this.activePointIndex = -1;
-    //this.activeLineIndex = -1;
     let activeFigureIndex = this.getIndexById(this.activeFigureId);
     this.figures[activeFigureIndex].inActivate();
     this.activeFigureId = -1;
-    //this.figures.forEach((fig) => { fig.inActivate(); })
-    //this.points.forEach((p) => {p.inActivate();})
-    //this.lines.forEach((l) => {l.inActivate();})
   }
   render(){
     push();
@@ -241,10 +214,6 @@ class figureSet{
   hyperbolicTranslate(dx, dy){
     this.figures.forEach((fig) => {fig.move(['t', dx, dy, 'end']);})
   }
-  //this.points.forEach((p) => {p.move(['t', dx, dy, 'end']);})
-  //this.lines.forEach((l) => {l.move(['t', dx, dy, 'end']);})
-  //this.points.forEach((p) => {p.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
-  //this.lines.forEach((l) => {l.move([{type:'translate', info:{dx:dx, dy:dy}}]);})
   hyperbolicRotateMethod(){
     // 回転（中心の右と左、それぞれについて、上下にドラッグしてそのように回転させる。）
     if(!mouseIsPressed || mouseX > 400){ return; }
@@ -256,8 +225,6 @@ class figureSet{
   hyperbolicRotate(dtheta){
     this.figures.forEach((fig) => {fig.move(['r', dtheta, 'end']);})
   }
-  //this.points.forEach((p) => {p.move([{type:'rotate', info:{dtheta:dtheta}}]);})
-  //this.lines.forEach((l) => {l.move([{type:'rotate', info:{dtheta:dtheta}}]);})
   addIntersectionMethod(x, y){
     // クリックした直線がactiveになり、他の直線をクリックすることで交点が出現する
     let id = this.getClosestFigureId(x, y);
@@ -351,7 +318,7 @@ class figureSet{
       }
     }
   }
-  addSymPointWithPointMethod(x, y){
+  addSymmetricFigureMethod(x, y){
     // activeな点に関して点や直線を点対称移動する。activeにできるのは点だけ。
     // って思ったんだけど直線でもいいやね。symmetricでいいんじゃない？
     let id = this.getClosestFigureId(x, y, this.points);
@@ -399,10 +366,6 @@ class figureSet{
       this.addLine(symFig.p, symFig.q);
     }
   }
-  addSymLineWithPointMethod(x, y){
-    // このメソッドは廃止される予定です。
-    return;
-  }
   getClosestFigureId(x, y){
     // クリック位置に最も近いオブジェクトのidを返す。点が優先。
     if(this.figures.length === 0){ return -1; }
@@ -422,9 +385,8 @@ class figureSet{
     }
     if(pointId >= 0 && minPointDist <= 15){ return pointId; } // 点を先に判定、OKなら返す。
     if(lineId >= 0 && minLineDist <= 10){ return lineId; } // 線を次に判定、OKなら返す。
+    // 点→線の優先順位は自然だと思うけどな。
     return -1;
-    //if(index < 0 || minDist > 15){ return -1; }
-    //return index;
   }
   getIndexById(id){
     // idからindexを取得。そうか、idってばらばらだっけ。総当たりでいいです。
@@ -433,28 +395,10 @@ class figureSet{
     }
     return -1;
   }
-  /*
-  getPointIndexById(id){
-    // idから該当する点の通し番号を取得
-    for(let index = 0; index < this.points.length; index++){
-      if(this.points[index].id === id){ return index; }
-    }
-    return -1;
-  }
-  getLineIndexById(id){
-    // idから該当する直線の通し番号を取得
-    for(let index = 0; index < this.lines.length; index++){
-      if(this.lines[index].id === id){ return index; }
-    }
-    return -1;
-  }
-  */
   allClear(){
     // 円内をクリックするとすべての図形が消え失せる(activeはこのモードにしたとき既に外れている)
     this.figures = [];
     this.maxPointIndex = 0;
-    //this.points = [];
-    //this.lines = [];
     // idリセット
     hPoint.id = 0;
     hLine.id = 1;
@@ -479,7 +423,7 @@ function mouseClicked(){
   if(Math.pow(x, 2) + Math.pow(y, 2) < 40000){
     // 各種描画処理
     let mode = figSet.getMode();
-    if(mode !== 4 && mode !== 6){ figSet.execute(x, y); }
+    if(mode !== 3 && mode !== 5){ figSet.execute(x, y); }
   }else{
     // コンフィグ処理（モード変更処理）
     x = mouseX - 400, y = mouseY;
@@ -491,21 +435,6 @@ function mouseClicked(){
   }
   return;
 }
-
-// closestはメソッドにしようね。あと欲しいのはid.
-/*
-function getClosestFigureIndex(x, y, targetSet){
-  // ひとつにまとめたい(targetSetに点の配列や直線の配列を入れる).
-  if(targetSet.length === 0){ return -1; }
-  let minDist = 400;
-  let index = -1;
-  for(let i = 0; i < targetSet.length; i++){
-    let dist = targetSet[i].getDist(x, y);
-    if(dist < minDist){ minDist = dist; index = i; }
-  }
-  if(index < 0 || minDist > 15){ return -1; }
-  return index;
-}*/
 
 // lのところ、pとか、一般化するべきかな・・
 function calcDist(l, x, y){
