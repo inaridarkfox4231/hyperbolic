@@ -5,6 +5,8 @@ let button_off = [];
 let button_on = [];
 const RADIUS = 200; // 使うかも
 const RADIUS_DOUBLE = 40000; // 使うかも
+const FigureKind = 2; // 点と線の2種類という意味、これをidに加算することで、idを見て種類を判別できる。
+// そのうち3にするかもしれないが・・未定。
 let buttonPos = [];
 for(let i = 0; i < 10; i++){ buttonPos.push({x:200, y:40 * i - 200}); }
 for(let i = 0; i < 10; i++){ buttonPos.push({x:320, y:40 * i - 200}); }
@@ -44,8 +46,9 @@ class figureSet{
     this.drawMode = 0; // drawModeはこっちもちでいいんじゃない。
     this.activePointIndex = -1; // activeになってる点のindex.(activePointIndexの方がいいかも)
     this.activeLineIndex = -1;  // activeになってる直線のindex.(あれ・・idとどっちがいいんだろ・・)
-    this.maxPointId = 0; // 次に設定する点のid値(偶数)
-    this.maxLineId = 1; // 次に設定する直線のid値(奇数)
+    // maxIdを持たせるのは廃止
+    //this.maxPointId = 0; // 次に設定する点のid値(偶数)
+    //this.maxLineId = 1; // 次に設定する直線のid値(奇数)
   }
   getMode(){ return this.drawMode; }
   setMode(newMode){
@@ -80,14 +83,19 @@ class figureSet{
         this.addSymLineWithPointMethod(x, y); return;
     }
   }
+  clickAction(x, y, first, second){
+    // クリックで何かしらやるときのメソッドをまとめる感じ。first, secondは'p','l','pl'のどれか。
+    // firstはactiveになるオブジェクトの種類、secondはactiveがあるときにクリックするオブジェクトの種類。
+  }
   addPoint(x, y){
     // (x, y)は位置、activeは赤くなる.
     // id値を設定して番号の更新が不要になるようにした。
     let newPoint = new hPoint(x, y);
-    newPoint.setId(this.maxPointId);
+    newPoint.setId();
     this.maxPointId += 2;
     this.points.push(newPoint);
     console.log("(" + x + ", " + y + ")");
+    console.log('pointId = ' + newPoint.id);
   }
   removePointMethod(x, y){
     // (x, y)に最も近い点を探す
@@ -137,10 +145,10 @@ class figureSet{
     // Euclid線分の場合は両端の座標(x1, y1, x2, y2)。
     // typeとinfoで、infoに先の情報を格納する。
     let newLine = new hLine(p, q);
-    newLine.setId(this.maxLineId);
+    newLine.setId();
     this.maxLineId += 2;
     this.lines.push(newLine);
-    console.log(newLine);
+    console.log('lineId = ' + newLine.id);
   }
   removeLineMethod(x, y){
     // 直線を消す。
@@ -395,6 +403,9 @@ class figureSet{
     // 円内をクリックするとすべての図形が消え失せる
     this.points = [];
     this.lines = [];
+    // idリセット
+    hPoint.id = 0;
+    hLine.id = 1;
   }
 }
 
@@ -545,15 +556,28 @@ function getAngle(y, x){
 // ---------------------------------------------------- //
 // 図形（点と直線、今んとこ。）。円も描いてみたいけど。
 
-// 双曲平面上の点
-class hPoint{
-  constructor(x, y){
-    this.x = x;
-    this.y = y;
+// 基底クラス、作るかー？
+class hFigure{
+  constructor(){
     this.id = -1;
     this.active = false;
   }
-  setId(newId){ this.id = newId; }
+  setId(){} // id設定
+  activate(){ this.active = true; }
+  inActivate(){ this.active = false; }
+  getDist(x, y){} // 距離計算メソッド
+  move(seq){} // seqに応じた位置変更メソッド
+  render(){} // 描画メソッド
+}
+
+// 双曲平面上の点
+class hPoint extends hFigure{
+  constructor(x, y){
+    super();
+    this.x = x;
+    this.y = y;
+  }
+  setId(){ this.id = hPoint.id; hPoint.id += FigureKind; }
   activate(){ this.active = true; }
   inActivate(){ this.active = false; }
   getDist(x, y){
@@ -573,16 +597,15 @@ class hPoint{
 // 双曲平面上の直線
 // generatorとしてp, qの情報を保存しといて、変換がかかったらそのp, qを移して新しくデータを計算し、
 // typeとinfoはそこから取得して、idは変えないで、generatorは変換先でOK.
-class hLine{
+class hLine extends hFigure{
   constructor(p, q){
+    super();
     let lineData = getHypoLine(p, q);
     this.type = lineData.type;
     this.info = lineData.info;
-    this.id = -1;
-    this.active = false;
     this.generator = {p:{x:p.x, y:p.y}, q:{x:q.x, y:q.y}}; // 作った時に使った点（位置情報オンリー）
   }
-  setId(newId){ this.id = newId; }
+  setId(){ this.id = hLine.id; hLine.id += FigureKind; }
   activate(){ this.active = true; }
   inActivate(){ this.active = false; }
   getDist(x, y){
@@ -626,6 +649,9 @@ class hLine{
     }
   }
 }
+
+hPoint.id = 0;
+hLine.id = 1;
 
 function calcAlpha(){
   return 50 * (1 + Math.cos(Math.PI * frameCount / 20));
