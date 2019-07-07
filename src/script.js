@@ -11,6 +11,17 @@ let buttonPos = [];
 for(let i = 0; i < 10; i++){ buttonPos.push({x:200, y:40 * i - 200}); }
 for(let i = 0; i < 10; i++){ buttonPos.push({x:320, y:40 * i - 200}); }
 const MaxButtonId = 11;
+const DRAW_POINT = 0;
+const DRAW_LINE = 1;
+const REMOVE_FIG = 2;
+const TRANS_LATE = 3;
+const CENTER_ING = 4;
+const RO_TATE = 5;
+const INTER_SECTION = 6;
+const MIDDLE_POINT = 7;
+const DRAW_NORMAL = 8;
+const ALL_CLEAR = 9;
+const SYM_METRIC = 10;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -61,23 +72,23 @@ class figureSet{
   }
   execute(x, y){
     switch(this.drawMode){
-      case 0: // 点を追加
+      case DRAW_POINT: // 点を追加
         this.addPoint(x, y); return;
-      case 1: // 線を引く
+      case DRAW_LINE: // 線を引く
         this.clickMethod(x, y, [0], [[0], []]); return;
-      case 2: // 図形を削除
+      case REMOVE_FIG: // 図形を削除
         this.clickMethod(x, y, [0, 1], [[0, 1], [0, 1]]); return;
-      case 4: // センタリング
+      case CENTER_ING: // センタリング
         this.centeringMethod(x, y); return;
-      case 6: // 線と線の交点
+      case INTER_SECTION: // 線と線の交点
         this.clickMethod(x, y, [1], [[], [1]]); return;
-      case 7: // 点と点の中点
+      case MIDDLE_POINT: // 点と点の中点
         this.clickMethod(x, y, [0], [[0], []]); return;
-      case 8: // 点を通り線に垂直に交わる直線の追加
+      case DRAW_NORMAL: // 点を通り線に垂直に交わる直線の追加
         this.clickMethod(x, y, [0, 1], [[1], [0]]); return;
-      case 9: // 全削除
+      case ALL_CLEAR: // 全削除
         this.allClear(); return;
-      case 10: // 対称移動
+      case SYM_METRIC: // 対称移動
         this.clickMethod(x, y, [0, 1], [[0, 1], [0, 1]]); return;
     }
   }
@@ -113,7 +124,7 @@ class figureSet{
   }
   activeClickMethod(fig){
     // 今んとこ削除とキャンセルしかない感じ。
-    if(this.drawMode === 2){
+    if(this.drawMode === REMOVE_FIG){
       this.removeFigure(fig.id);
     }else{
       fig.inActivate();
@@ -123,28 +134,28 @@ class figureSet{
   nonActiveClickMethod(fig1, fig2){
     // fig1がactiveな方。いろいろ。
     switch(this.drawMode){
-      case 1:
+      case DRAW_LINE:
         // 線を引く
         this.addLine(fig1, fig2);
         return;
-      case 2:
+      case REMOVE_FIG:
         // スイッチ。fig2がactiveになる
         fig1.inActivate();
         fig2.activate();
         this.activeFigureId = fig2.id;
         return;
-      case 6:
+      case INTER_SECTION:
         // 2直線の交点を追加
         let is = getIntersection(fig1, fig2);
         if(is === undefined){ return; }
         this.addPoint(is.x, is.y);
         return;
-      case 7:
+      case MIDDLE_POINT:
         // 2点の中点を追加
         let mid = getMiddlePoint(fig1, fig2);
         this.addPoint(mid.x, mid.y);
         return;
-      case 8:
+      case DRAW_NORMAL:
         // 垂線を追加
         let normal;
         // どっちが点なのか判断している。
@@ -152,7 +163,7 @@ class figureSet{
         else{ normal = getNormal(fig2, fig1); }
         this.addLine(normal.p, normal.q);
         return;
-      case 10:
+      case SYM_METRIC:
         // fig1に関してfig2と対称なオブジェクトを追加
         this.addSymmetricFigure(fig1, fig2);
         return;
