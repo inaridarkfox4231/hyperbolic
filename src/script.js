@@ -82,10 +82,41 @@ class figureSet{
         this.addSymmetricFigureMethod(x, y); return;
     }
   }
-  clickAction(x, y, first, second){
+  clickMethod(x, y, activateFigureKindArray, actionPatternArray){
     // クリックで何かしらやるときのメソッドをまとめる感じ。first, secondは'p','l','pl'のどれか。
     // firstはactiveになるオブジェクトの種類、secondはactiveがあるときにクリックするオブジェクトの種類。
     // とりあえず書き直してから。
+    let id = this.getClosestFigureId(x, y); // ここは共通
+    if(id < 0){
+      this.inActivate(); return; // 何もないところをクリックするとキャンセル。これが共通の処理。
+    }
+    let index = this.getIndexById(id); // indexを取得
+    let fig = this.figures[index]; // 図形objectを取得
+    if(this.activeFigureId < 0){
+      // 場がactiveでないときは然るべきバリデーションをかけたうえでクリックした図形をactivate.
+      // たとえば[0]とか[0, 1]みたいなやつ。
+      if(activateFigureKindArray.indexOf(id % FigureKind) < 0){ return; }
+      fig.activate();
+      this.activeFigureId = id;
+    }else{
+      if(this.activeFigureId === id){
+        // activeなものをクリックしたときの処理。
+        this.activeClickMethod(fig); // ここから先はdrawModeで分ける。
+      }else{
+        // activeでないものをクリックしたときの処理。バリデーションを掛ける。
+        // たとえばintersectionの場合は[[1], [0]]みたいになる。
+        if(actionPatternArray[this.activeFigureId % FigureKind].indexOf(id % FigureKind) < 0){ return; }
+        let activeFigureIndex = this.getIndexById(this.activeFigureId);
+        let activeFigure = this.figures[activeFigureIndex];
+        this.nonActiveClickMethod(activeFigure, fig); // ここから先はdrawModeで分ける。
+      }
+    }
+  }
+  activeClickMethod(fig){
+    
+  }
+  nonActiveClickMethod(fig1, fig2){
+    // fig1がactiveな方。
   }
   addPoint(x, y){
     // (x, y)は位置、activeは赤くなる.
@@ -113,7 +144,7 @@ class figureSet{
     }else{
       // activeなものがあるときはそれとidを比較して処理を分ける
       if(this.activeFigureId === id){
-        this.removeFigure(id); // 点をidを利用して排除。
+        this.removeFigure(id); // オブジェクトを排除
         this.activeFigureId = -1;
       }else{
         // クリックした点を代りにactiveにする。
