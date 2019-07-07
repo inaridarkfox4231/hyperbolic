@@ -25,8 +25,10 @@ const SYM_METRIC = 10;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
-    button_off.push(loadImage("./assets/fig_" + i + "_off.png"));
-    button_on.push(loadImage("./assets/fig_" + i + "_on.png"));
+    //button_off.push(loadImage("./assets/fig_" + i + "_off.png"));
+    //button_on.push(loadImage("./assets/fig_" + i + "_on.png"));
+    button_off.push(loadImage("https://inaridarkfox4231.github.io/hyperbolic_config/fig_" + i + "_off.png"));
+    button_on.push(loadImage("https://inaridarkfox4231.github.io/hyperbolic_config/fig_" + i + "_on.png"));
   }
 }
 
@@ -43,8 +45,8 @@ function draw(){
   fill(70);
   ellipse(0, 0, 400, 400);
   // translateモードは毎フレーム。
-  if(figSet.getMode() === 3){ figSet.hyperbolicTranslateMethod(); }
-  if(figSet.getMode() === 5){ figSet.hyperbolicRotateMethod(); }
+  if(figSet.getMode() === TRANS_LATE){ figSet.hyperbolicTranslateMethod(); }
+  if(figSet.getMode() === RO_TATE){ figSet.hyperbolicRotateMethod(); }
   figSet.render();
   drawConfig();
 }
@@ -80,6 +82,10 @@ class figureSet{
         this.clickMethod(x, y, [0, 1], [[0, 1], [0, 1]]); return;
       case CENTER_ING: // センタリング
         this.centeringMethod(x, y); return;
+      case TRANS_LATE: // translateモードで点をクリックするとその点がセンタリングされる
+        this.centeringMethod(x, y); return;
+      case RO_TATE: // rotateモードで点をクリックするとその点がx軸正方向に来るように回転する。
+        this.normalizeRotateMethod(x, y); return;
       case INTER_SECTION: // 線と線の交点
         this.clickMethod(x, y, [1], [[], [1]]); return;
       case MIDDLE_POINT: // 点と点の中点
@@ -93,9 +99,8 @@ class figureSet{
     }
   }
   clickMethod(x, y, activateFigureKindArray, actionPatternArray){
-    // クリックで何かしらやるときのメソッドをまとめる感じ。first, secondは'p','l','pl'のどれか。
-    // firstはactiveになるオブジェクトの種類、secondはactiveがあるときにクリックするオブジェクトの種類。
-    // とりあえず書き直してから。
+    // activateFigureKindArray: 最初にクリックする図形の種類(0, 1, ...)
+    // actionPatternArray: 配列の配列、その図形がactiveになってる時にクリックできる図形の種類
     let id = this.getClosestFigureId(x, y); // ここは共通
     if(id < 0){
       this.inActivate(); return; // 何もないところをクリックするとキャンセル。これが共通の処理。
@@ -197,14 +202,6 @@ class figureSet{
     this.figures.push(newLine);
     console.log('lineId = ' + newLine.id);
   }
-  centeringMethod(x, y){
-    // 指定した点が中央に来るようにtranslateが成される。これがあれば中央に点を置くメソッド要らないね・・
-    let id = this.getClosestFigureId(x, y);
-    if(id < 0 || !(id % FigureKind === 0)){ return; }
-    let index = this.getIndexById(id);
-    let p = this.figures[index];
-    this.hyperbolicTranslate(-p.x, -p.y);
-  }
   inActivate(){
     // activeをキャンセル. activeなのは高々1つ。
     if(this.activeFigureId < 0){ return; } // non-activeならやることなし。
@@ -238,8 +235,17 @@ class figureSet{
   hyperbolicTranslate(dx, dy){
     this.figures.forEach((fig) => {fig.move(['t', dx, dy, 'end']);})
   }
+  centeringMethod(x, y){
+    // 指定した点が中央に来るようにtranslateが成される。translateモードで点をクリックすると発動する。
+    let id = this.getClosestFigureId(x, y);
+    if(id < 0 || !(id % FigureKind === 0)){ return; }
+    let index = this.getIndexById(id);
+    let p = this.figures[index];
+    this.hyperbolicTranslate(-p.x, -p.y);
+  }
   hyperbolicRotateMethod(){
     // 回転（中心の右と左、それぞれについて、上下にドラッグしてそのように回転させる。）
+    // 機能追加。点をクリックするとその点がx軸正方向に来るように回転する。mouseReleasedが使えそう。
     if(!mouseIsPressed || mouseX > 400){ return; }
     // dyを回転角に変換する。
     let dtheta = (mouseY - pmouseY) * 0.02;
@@ -248,6 +254,15 @@ class figureSet{
   }
   hyperbolicRotate(dtheta){
     this.figures.forEach((fig) => {fig.move(['r', dtheta, 'end']);})
+  }
+  normalizeRotateMethod(x, y){
+    // 指定した点がx軸正方向にくるように回転. rotateモードで点をクリックすると発動する。
+    let id = this.getClosestFigureId(x, y);
+    if(id < 0 || !(id % FigureKind === 0)){ return; }
+    let index = this.getIndexById(id);
+    let p = this.figures[index];
+    let dtheta = atan2(p.y, p.x);
+    this.hyperbolicRotate(-dtheta);
   }
   addSymmetricFigure(f1, f2){
     if(f1.id % FigureKind > 1 || f2.id % FigureKind > 1){ return; }
@@ -325,7 +340,8 @@ function mouseClicked(){
   if(Math.pow(x, 2) + Math.pow(y, 2) < 40000){
     // 各種描画処理
     let mode = figSet.getMode();
-    if(mode !== 3 && mode !== 5){ figSet.execute(x, y); }
+    // translateとrotateのときの処理も追加したのでバリデーションは廃止。
+    figSet.execute(x, y);
   }else{
     // コンフィグ処理（モード変更処理）
     x = mouseX - 400, y = mouseY;
