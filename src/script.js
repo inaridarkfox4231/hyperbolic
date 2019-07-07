@@ -113,10 +113,51 @@ class figureSet{
     }
   }
   activeClickMethod(fig){
-    
+    // 今んとこ削除とキャンセルしかない感じ。
+    if(this.drawMode === 2){
+      this.removeFigure(fig.id);
+    }else{
+      fig.inActivate();
+    }
+    this.activeFigureId = -1;
   }
   nonActiveClickMethod(fig1, fig2){
-    // fig1がactiveな方。
+    // fig1がactiveな方。いろいろ。
+    switch(this.drawMode){
+      case 1:
+        // 線を引く
+        this.addLine(fig1, fig2);
+        return;
+      case 2:
+        // スイッチ。fig2がactiveになる
+        fig1.inActivate();
+        fig2.activate();
+        this.activeFigureId = fig2.id;
+        return;
+      case 6:
+        // 2直線の交点を追加
+        let is = getIntersection(fig1, fig2);
+        if(is === undefined){ return; }
+        this.addPoint(is.x, is.y);
+        return;
+      case 7:
+        // 2点の中点を追加
+        let mid = getMiddlePoint(fig1, fig2;
+        this.addPoint(mid.x, mid.y);
+        return;
+      case 8:
+        // 垂線を追加
+        let normal;
+        // どっちが点なのか判断している。
+        if(fig1.id % FigureKind === 0){ normal = getNormal(fig1, fig2); }
+        else{ normal = getNormal(fig2, fig1); }
+        this.addLine(normal.p, normal.q);
+        return;
+      case 10:
+        // fig1に関してfig2と対称なオブジェクトを追加
+        this.addSymmetricFigure(fig1, fig2);
+        return;
+    }
   }
   addPoint(x, y){
     // (x, y)は位置、activeは赤くなる.
@@ -205,9 +246,7 @@ class figureSet{
   centeringMethod(x, y){
     // 指定した点が中央に来るようにtranslateが成される。これがあれば中央に点を置くメソッド要らないね・・
     let id = this.getClosestFigureId(x, y);
-    console.log(id);
     if(id < 0 || !(id % FigureKind === 0)){ return; }
-    console.log("centering");
     let index = this.getIndexById(id);
     let p = this.figures[index];
     this.hyperbolicTranslate(-p.x, -p.y);
