@@ -96,7 +96,7 @@ class figureSet{
       case ALL_CLEAR: // 全削除
         this.allClear(); return;
       case SYM_METRIC: // 対称移動
-        this.clickMethod(x, y, [0, 1], [[0, 1], [0, 1], []]); return;
+        this.clickMethod(x, y, [0, 1], [[0, 1, 2], [0, 1, 2], []]); return;
     }
   }
   clickMethod(x, y, activateFigureKindArray, actionPatternArray){
@@ -279,22 +279,28 @@ class figureSet{
     this.hyperbolicRotate(-dtheta);
   }
   addSymmetricFigure(f1, f2){
-    if(f1.id % FigureKind > 1 || f2.id % FigureKind > 1){ return; }
+    let kind_1 = f1.id % FigureKind;
+    let kind_2 = f2.id % FigureKind;
+    if(kind_1 > 1 || kind_2 > 2){ return; }
     let symFig;
     // 4つの場合に分ける。
-    if(f1.id % FigureKind === 0){
+    if(kind_1 === 0){
       // 点対称
-      if(f2.id % FigureKind === 0){ symFig = getSymmetricPointWithPoint(f1, f2); }
-      else{ symFig = getSymmetricLineWithPoint(f1, f2); }
+      if(kind_2 === 0){ symFig = getSymmetricPointWithPoint(f1, f2); }
+      else if(kind_2 === 1){ symFig = getSymmetricLineWithPoint(f1, f2); }
+      else{ symFig = getSymmetricCircleWithPoint(f1, f2); }
     }else{
       // 線対称
-      if(f2.id % FigureKind === 0){ symFig = getMirrorPointWithLine(f1, f2); }
-      else{ symFig = getMirrorLineWithLine(f1, f2); }
+      if(kind_2 === 0){ symFig = getMirrorPointWithLine(f1, f2); }
+      else if(kind_2 === 1){ symFig = getMirrorLineWithLine(f1, f2); }
+      else{ symFig = getMirrorCircleWithLine(f1, f2); }
     }
-    if(f2.id % FigureKind === 0){
+    if(kind_2 === 0){
       this.addPoint(symFig.x, symFig.y);
-    }else{
+    }else if(kind_2 === 1){
       this.addLine(symFig.p, symFig.q);
+    }else{
+      this.addCircle(symFig.c, symFig.p);
     }
   }
   getClosestFigureId(x, y){
@@ -780,6 +786,16 @@ function getSymmetricLineWithPoint(c, l){
   return {p:newgp, q:newgq};
 }
 
+function getSymmetricCircleWithPoint(c, e){
+  // c:centerにより、e:ellipseを対称移動。具体的にはgeneratorをいじるだけ。
+  let gc = {x:e.generator.c.x, y:e.generator.c.y};
+  let gp = {x:e.generator.p.x, y:e.generator.p.y};
+  let newgc = getSymmetricPointWithPoint(c, gc);
+  let newgp = getSymmetricPointWithPoint(c, gp);
+  return {c:newgc, p:newgp};
+}
+
+
 function getMirrorPointWithLine(c, p){
   // cは直線。cに関してpと対称な点をよこす。
   let gp = {x:c.generator.p.x, y:c.generator.p.y};
@@ -804,6 +820,15 @@ function getMirrorLineWithLine(c, l){
   let newgp = getMirrorPointWithLine(c, gp);
   let newgq = getMirrorPointWithLine(c, gq);
   return {p:newgp, q:newgq};
+}
+
+function getMirrorCircleWithLine(c, e){
+  // 直線cに関してeと対称な円を以下略。
+  let gc = {x:e.generator.c.x, y:e.generator.c.y};
+  let gp = {x:e.generator.p.x, y:e.generator.p.y};
+  let newgc = getMirrorPointWithLine(c, gc);
+  let newgp = getMirrorPointWithLine(c, gp);
+  return {c:newgc, p:newgp};
 }
 
 // -------------------------------- //
