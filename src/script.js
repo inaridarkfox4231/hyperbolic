@@ -14,9 +14,9 @@ for(let i = 0; i < 10; i++){ buttonPos.push({x:320, y:40 * i - 200}); }
 const MaxButtonId = 11;
 const DRAW_POINT = 0;
 const DRAW_LINE = 1;
-const REMOVE_FIG = 2;
-const TRANS_LATE = 3;
-const CENTER_ING = 4;
+const DRAW_CIRCLE = 2;
+const REMOVE_FIG = 3;
+const TRANS_LATE = 4;
 const RO_TATE = 5;
 const INTER_SECTION = 6;
 const MIDDLE_POINT = 7;
@@ -26,10 +26,10 @@ const SYM_METRIC = 10;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
-    //button_off.push(loadImage("./assets/fig_" + i + "_off.png"));
-    //button_on.push(loadImage("./assets/fig_" + i + "_on.png"));
-    button_off.push(loadImage("https://inaridarkfox4231.github.io/hyperbolic_config/fig_" + i + "_off.png"));
-    button_on.push(loadImage("https://inaridarkfox4231.github.io/hyperbolic_config/fig_" + i + "_on.png"));
+    button_off.push(loadImage("./assets/fig_" + i + "_off.png"));
+    button_on.push(loadImage("./assets/fig_" + i + "_on.png"));
+    //button_off.push(loadImage("https://inaridarkfox4231.github.io/hyperbolic_config/fig_" + i + "_off.png"));
+    //button_on.push(loadImage("https://inaridarkfox4231.github.io/hyperbolic_config/fig_" + i + "_on.png"));
   }
 }
 
@@ -77,26 +77,26 @@ class figureSet{
     switch(this.drawMode){
       case DRAW_POINT: // 点を追加
         this.addPoint(x, y); return;
-      case DRAW_LINE: // 線を引く
-        this.clickMethod(x, y, [0], [[0], []]); return;
+      case DRAW_LINE: // 直線を引く
+        this.clickMethod(x, y, [0], [[0], [], []]); return;
+      case DRAW_CIRCLE: // 円を描く
+        this.clickMethod(x, y, [0], [[0], [], []]); return;
       case REMOVE_FIG: // 図形を削除
-        this.clickMethod(x, y, [0, 1], [[0, 1], [0, 1]]); return;
-      case CENTER_ING: // センタリング
-        this.centeringMethod(x, y); return;
+        this.clickMethod(x, y, [0, 1, 2], [[0, 1, 2], [0, 1, 2], [0, 1, 2]]); return;
       case TRANS_LATE: // translateモードで点をクリックするとその点がセンタリングされる
         this.centeringMethod(x, y); return;
       case RO_TATE: // rotateモードで点をクリックするとその点がx軸正方向に来るように回転する。
         this.normalizeRotateMethod(x, y); return;
       case INTER_SECTION: // 線と線の交点
-        this.clickMethod(x, y, [1], [[], [1]]); return;
+        this.clickMethod(x, y, [1], [[], [1], []]); return;
       case MIDDLE_POINT: // 点と点の中点
-        this.clickMethod(x, y, [0], [[0], []]); return;
+        this.clickMethod(x, y, [0], [[0], [], []]); return;
       case DRAW_NORMAL: // 点を通り線に垂直に交わる直線の追加
-        this.clickMethod(x, y, [0, 1], [[1], [0]]); return;
+        this.clickMethod(x, y, [0, 1], [[1], [0], []]); return;
       case ALL_CLEAR: // 全削除
         this.allClear(); return;
       case SYM_METRIC: // 対称移動
-        this.clickMethod(x, y, [0, 1], [[0, 1], [0, 1]]); return;
+        this.clickMethod(x, y, [0, 1], [[0, 1], [0, 1], []]); return;
     }
   }
   clickMethod(x, y, activateFigureKindArray, actionPatternArray){
@@ -143,6 +143,10 @@ class figureSet{
       case DRAW_LINE:
         // 線を引く
         this.addLine(fig1, fig2);
+        return;
+      case DRAW_CIRCLE:
+        // 円を追加
+        this.addCircle(fig1, fig2);
         return;
       case REMOVE_FIG:
         // スイッチ。fig2がactiveになる
@@ -297,22 +301,22 @@ class figureSet{
     // クリック位置に最も近いオブジェクトのidを返す。点が優先。
     if(this.figures.length === 0){ return -1; }
     let minPointDist = 400; // 一番近くの点との距離
-    let minLineDist = 400; // 一番近くの線との距離
+    let minOtherDist = 400; // 一番近くの直線、円との距離
     let pointId = -1;
-    let lineId = -1;
+    let otherId = -1;
     for(let i = 0; i < this.maxPointIndex; i++){
       let p = this.figures[i];
       let dist = p.getDist(x, y);
       if(dist < minPointDist){ minPointDist = dist; pointId = p.id; }
     }
     for(let i = this.maxPointIndex; i < this.figures.length; i++){
-      let l = this.figures[i];
-      let dist = l.getDist(x, y);
-      if(dist < minLineDist){ minLineDist = dist; lineId = l.id; }
+      let fig = this.figures[i];
+      let dist = fig.getDist(x, y);
+      if(dist < minOtherDist){ minOtherDist = dist; otherId = fig.id; }
     }
     if(pointId >= 0 && minPointDist <= 15){ return pointId; } // 点を先に判定、OKなら返す。
-    if(lineId >= 0 && minLineDist <= 10){ return lineId; } // 線を次に判定、OKなら返す。
-    // 点→線の優先順位は自然だと思うけどな。
+    if(otherId >= 0 && minOtherDist <= 10){ return otherId; } // 直線、円を次に判定、OKなら返す。
+    // 点→直線、円、という判定順。
     return -1;
   }
   getIndexById(id){
@@ -590,6 +594,7 @@ class hCircle extends hFigure{
     this.regenerate();
   }
   render(){
+    if(this.active){ stroke(0, calcAlpha()); }else{ stroke(0); }
     arc(this.cx, this.cy, this.r * 2, this.r * 2, 0, 2 * Math.PI);
   }
 }
