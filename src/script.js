@@ -212,7 +212,7 @@ class figureSet{
     let newCircle = new hCircle(c, p);
     newCircle.setId();
     this.figures.push(newCircle);
-    concole.log('circleId = ' + newCircle.id);
+    console.log('circleId = ' + newCircle.id);
   }
   inActivate(){
     // activeをキャンセル. activeなのは高々1つ。
