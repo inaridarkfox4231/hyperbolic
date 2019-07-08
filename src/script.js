@@ -6,8 +6,9 @@ let button_on = [];
 
 const RADIUS = 200; // 使うかも
 const RADIUS_DOUBLE = 40000; // 使うかも
+const RADIUS_QUAD = 1600000000; // 使ってます
 const FigureKind = 3; // 点と線の2種類という意味、これをidに加算することで、idを見て種類を判別できる。
-// そのうち3にするかもしれないが・・未定。
+// 3にした。4になるかは今の所未定。他に図形あるかな・・
 let buttonPos = [];
 for(let i = 0; i < 10; i++){ buttonPos.push({x:200, y:40 * i - 200}); }
 for(let i = 0; i < 10; i++){ buttonPos.push({x:320, y:40 * i - 200}); }
@@ -227,7 +228,9 @@ class figureSet{
     stroke(0);
     strokeWeight(1.0);
     // 直線と円の描画
-    for(let i = this.maxPointIndex; i < this.figures.length; i++){ this.figures[i].render(); }
+    for(let i = this.maxPointIndex; i < this.figures.length; i++){
+      this.figures[i].render();
+    }
     pop();
     // 直線や円を描いてから点を描きたいのよね。あれ、そうなるとmaxPointIndex要らないじゃん？あ、要るか。
     // ただ後ろに追加するという意味では・・んー。逆にすべきかもね。
