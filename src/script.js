@@ -3,9 +3,10 @@
 let figSet;
 let button_off = [];
 let button_on = [];
+
 const RADIUS = 200; // 使うかも
 const RADIUS_DOUBLE = 40000; // 使うかも
-const FigureKind = 2; // 点と線の2種類という意味、これをidに加算することで、idを見て種類を判別できる。
+const FigureKind = 3; // 点と線の2種類という意味、これをidに加算することで、idを見て種類を判別できる。
 // そのうち3にするかもしれないが・・未定。
 let buttonPos = [];
 for(let i = 0; i < 10; i++){ buttonPos.push({x:200, y:40 * i - 200}); }
@@ -198,9 +199,16 @@ class figureSet{
     // typeとinfoで、infoに先の情報を格納する。
     let newLine = new hLine(p, q);
     newLine.setId();
-    this.maxLineId += 2;
+    //this.maxLineId += 2;
     this.figures.push(newLine);
     console.log('lineId = ' + newLine.id);
+  }
+  addCircle(c, p){
+    // c中心、pを通る円を追加する。
+    let newCircle = new hCircle(c, p);
+    newCircle.setId();
+    this.figures.push(newCircle);
+    concole.log('circleId = ' + newCircle.id);
   }
   inActivate(){
     // activeをキャンセル. activeなのは高々1つ。
@@ -211,15 +219,17 @@ class figureSet{
   }
   render(){
     push();
-    // 点の描画
-    for(let i = 0; i < this.maxPointIndex; i++){ this.figures[i].render(); }
-    pop();
-    push();
     noFill();
     stroke(0);
     strokeWeight(1.0);
-    // 直線の描画
+    // 直線と円の描画
     for(let i = this.maxPointIndex; i < this.figures.length; i++){ this.figures[i].render(); }
+    pop();
+    // 直線や円を描いてから点を描きたいのよね。あれ、そうなるとmaxPointIndex要らないじゃん？あ、要るか。
+    // ただ後ろに追加するという意味では・・んー。逆にすべきかもね。
+    push();
+    // 点の描画
+    for(let i = 0; i < this.maxPointIndex; i++){ this.figures[i].render(); }
     pop();
   }
   hyperbolicTranslateMethod(){
@@ -482,8 +492,6 @@ class hPoint extends hFigure{
     this.y = y;
   }
   setId(){ this.id = hPoint.id; hPoint.id += FigureKind; }
-  activate(){ this.active = true; }
-  inActivate(){ this.active = false; }
   getDist(x, y){
     // (x, y)との距離を返す(Euclid距離)
     return Math.sqrt(Math.pow(this.x - x, 2) + Math.pow(this.y - y, 2));
@@ -510,8 +518,6 @@ class hLine extends hFigure{
     this.generator = {p:{x:p.x, y:p.y}, q:{x:q.x, y:q.y}}; // 作った時に使った点（位置情報オンリー）
   }
   setId(){ this.id = hLine.id; hLine.id += FigureKind; }
-  activate(){ this.active = true; }
-  inActivate(){ this.active = false; }
   getDist(x, y){
     // (x, y)との距離を返す（なおEuclid距離である）
     let data = this.info;
@@ -554,8 +560,43 @@ class hLine extends hFigure{
   }
 }
 
+// ロバチェフスキー円
+class hCircle extends hFigure{
+  constructor(c, p){
+    super();
+    let circleData = getHypoCircle(c, p);
+    this.cx = circleData.cx;
+    this.cy = circleData.cy;
+    this.r = circleData.r;
+    this.generator = {c:{x:c.x, y:c.y}, p:{x:p.x, y:p.y}};
+  }
+  setId(){ this.id = hCircle.id; hCircle.id += FigureKind; }
+  getDist(x, y){
+    // 中心(cx, cy)との距離と半径との差の絶対値。
+    let distCenter = Math.sqrt(Math.pow(this.cx - x, 2) + Math.pow(this.cy - y, 2));
+    return abs(distCenter - this.r);
+  }
+  regenerate(){
+    // generatorが更新された際に、その情報を使ってtypeとinfoを再設定する。
+    let newData = getHypoCircle(this.generator.c, this.generator.p);
+    this.cx = newData.cx;
+    this.cy = newData.cy;
+    this.r = newData.r;
+  }
+  move(seq){
+    // generatorをいじってからregenerate.
+    hypoMove(seq, this.generator.c);
+    hypoMove(seq, this.generator.p);
+    this.regenerate();
+  }
+  render(){
+    arc(this.cx, this.cy, this.r * 2, this.r * 2, 0, 2 * Math.PI);
+  }
+}
+
 hPoint.id = 0;
 hLine.id = 1;
+hCircle.id = 2;
 
 // ----------------------------- //
 // 各種メソッド
@@ -758,4 +799,20 @@ function getMirrorLineWithLine(c, l){
   let newgp = getMirrorPointWithLine(c, gp);
   let newgq = getMirrorPointWithLine(c, gq);
   return {p:newgp, q:newgq};
+}
+
+// -------------------------------- //
+// 円関連。中心の座標とどこか1点の情報から、そこが中心でその点を通る円の中心と半径を出す。
+function getHypoCircle(c, p){
+  // cを0に移すセンタリングでpがqに移るとして、中心はR^2(R^2 - |q|^2)/(R^4 - |c|^2|q|^2) * c.
+  // 半径はR^2(R^2 - |c|^2)/(R^4 - |c|^2|q|^2) * |q|. こんな感じ。
+  // move処理は、generatorとしてのc, pを動かしたうえで再計算する感じかな・・
+  let dx = c.x, dy = c.y;
+  let w = {x:p.x, y:p.y};
+  hypoMove(['t', -dx, -dy, 'end'], w);
+  let norm_c = c.x * c.x + c.y * c.y;
+  let norm_w = w.x * w.x + w.y * w.y;
+  let centerFactor = 40000 * (40000 - norm_w) / (1600000000 - norm_c * norm_w);
+  let radiusFactor = 40000 * (40000 - norm_c) / (1600000000 - norm_c * norm_w);
+  return {cx:centerFactor * c.x, cy:centerFactor * c.y, r: radiusFactor * Math.sqrt(norm_w)};
 }
