@@ -89,7 +89,7 @@ class figureSet{
       case RO_TATE: // rotateモードで点をクリックするとその点がx軸正方向に来るように回転する。
         this.normalizeRotateMethod(x, y); return;
       case INTER_SECTION: // 線と線の交点
-        this.clickMethod(x, y, [1], [[], [1], []]); return;
+        this.clickMethod(x, y, [1, 2], [[], [1, 2], [1, 2]]); return;
       case MIDDLE_POINT: // 点と点の中点
         this.clickMethod(x, y, [0], [[0], [], []]); return;
       case DRAW_NORMAL: // 点を通り線に垂直に交わる直線の追加
@@ -157,9 +157,26 @@ class figureSet{
         return;
       case INTER_SECTION:
         // 2直線の交点を追加
-        let is = getIntersection(fig1, fig2);
-        if(is === undefined){ return; }
-        this.addPoint(is.x, is.y);
+        let kind1 = fig1.id % FigureKind;
+        let kind2 = fig2.id % FigureKind;
+        if(kind1 === 1 && kind2 === 1){
+          let is = getIntersectionLineAndLine(fig1, fig2);
+          if(is === undefined){ return; }
+          this.addPoint(is.x, is.y);
+        }else if(kind1 === 1 || kind2 === 1){
+          let isSet = [];
+          if(kind1 === 1){
+            isSet = getIntersectionLineAndCircle(fig1, fig2);
+          }else{
+            isSet = getIntersectionLineAndCircle(fig2, fig1);
+          }
+          if(isSet.length === 0){ return; }
+          isSet.forEach((p) => { this.addPoint(p.x, p.y); })
+        }else{
+          let isSet = getIntersectionCircleAndCircle(fig1, fig2);
+          if(isSet.length === 0){ return; }
+          isSet.forEach((p) => { this.addPoint(p.x, p.y); })
+        }
         return;
       case MIDDLE_POINT:
         // 2点の中点を追加
@@ -664,7 +681,7 @@ function hypoMove(seq, p){
   }
 }
 
-function getIntersection(l1, l2){
+function getIntersectionLineAndLine(l1, l2){
   // 2直線l1, l2の交点として{x:x, y:y}を返す。
   // 具体的には、まずl1のgeneratorのpのpx, pyを記録しておいて、これは最後に使う。
   // l1, l2のコピーを用意する。
@@ -672,31 +689,31 @@ function getIntersection(l1, l2){
   // さらにこのときのqx, qyについてqyが0でないなら回転も施す。こうして得られる変換を、
   // l1, l2双方のgeneratorに施して二つの直線を作る。と、l1側がx軸になるから計算しやすくなる。
   let dx, dy, dtheta;
-  let genSet = [];
+  let gSet = [];
   // generatorに相当する点を4つ。
-  genSet.push({x:l1.generator.p.x, y:l1.generator.p.y});
-  genSet.push({x:l1.generator.q.x, y:l1.generator.q.y});
-  genSet.push({x:l2.generator.p.x, y:l2.generator.p.y});
-  genSet.push({x:l2.generator.q.x, y:l2.generator.q.y});
-  dx = genSet[0].x, dy = genSet[0].y;
+  gSet.push({x:l1.generator.p.x, y:l1.generator.p.y});
+  gSet.push({x:l1.generator.q.x, y:l1.generator.q.y});
+  gSet.push({x:l2.generator.p.x, y:l2.generator.p.y});
+  gSet.push({x:l2.generator.q.x, y:l2.generator.q.y});
+  dx = gSet[0].x, dy = gSet[0].y;
   // l1.generator.pが原点に来るように全体をtranslate.
-  genSet.forEach((p) => {
+  gSet.forEach((p) => {
     hypoTranslate(-dx, -dy, p);
   })
-  dtheta = atan2(genSet[1].y, genSet[1].x);
+  dtheta = atan2(gSet[1].y, gSet[1].x);
   // l1.generator.qがx軸上にくるように全体をrotate.
-  genSet.forEach((p) => {
+  gSet.forEach((p) => {
     hypoRotate(-dtheta, p);
   })
   // このときcopyl1、つまり動かしたl1はx軸になっているので、それとcopyl2で議論すればいい。
-  let copyl1 = new hLine(genSet[0], genSet[1]);
-  let copyl2 = new hLine(genSet[2], genSet[3]);
+  let copyLine1 = new hLine(gSet[0], gSet[1]);
+  let copyLine2 = new hLine(gSet[2], gSet[3]);
   let x;
-  if(copyl2.type === 'line'){
+  if(copyLine2.type === 'line'){
     // 双方直線なら原点。
     x = 0;
   }else{
-    let a = copyl2.info.cx, b = copyl2.info.cy, r = copyl2.info.diam / 2;
+    let a = copyLine2.info.cx, b = copyLine2.info.cy, r = copyLine2.info.diam / 2;
     let x1 = a + Math.sqrt(r * r - b * b);
     let x2 = a - Math.sqrt(r * r - b * b);
     // ここでバリデーション. なお交点が2つ以上できることはない。
@@ -706,6 +723,80 @@ function getIntersection(l1, l2){
   // 回転とtranslateを逆に施す。
   hypoMove(['r', dtheta, 't', dx, dy, 'end'], is);
   return is;
+}
+
+function getIntersectionLineAndCircle(l, e){
+  // 直線lと円eの交点を返す感じで。接する場合に1つしか出さないのをどうするかって感じ。
+  let dx, dy, dtheta;
+  let gSet = [];
+  gSet.push({x:l.generator.p.x, y:l.generator.p.y});
+  gSet.push({x:l.generator.q.x, y:l.generator.q.y});
+  gSet.push({x:e.generator.c.x, y:e.generator.c.y});
+  gSet.push({x:e.generator.p.x, y:e.generator.p.y});
+  dx = gSet[0].x, dy = gSet[0].y;
+  gSet.forEach((p) => {
+    hypoTranslate(-dx, -dy, p);
+  })
+  dtheta = atan2(gSet[1].y, gSet[1].x);
+  gSet.forEach((p) => {
+    hypoRotate(-dtheta, p);
+  })
+  // このとき直線の方はx軸になっている。円の方は普通に中に入る円。そこで・・
+  let copyCircle = new hCircle(gSet[2], gSet[3]);
+  // これの半径と中心の情報から交点を計算して引き戻す。
+  let cx = copyCircle.cx, cy = copyCircle.cy, r = copyCircle.r;
+  let isSet = [];
+  if(abs(r - cy) < 0.0000001){
+    isSet.push({x:cx, y:0});
+  }else if(r > cy){
+    let diff = Math.sqrt(r * r - cy * cy);
+    isSet.push({x:cx + diff, y:0}), isSet.push({x:cx - diff, y:0});
+  }else{
+    return []; // 交点が見つからない時。
+  }
+  // 交点を引き戻す
+  isSet.forEach((is) => {
+    hypoMove(['r', dtheta, 't', dx, dy, 'end'], is);
+  })
+  return isSet;
+}
+
+function getIntersectionCircleAndCircle(e1, e2){
+  // 円と円の交点。e1の中心を原点においてからe2の中心をx軸において以下略。
+  let dx, dy, dtheta;
+  let gSet = [];
+  gSet.push({x:e1.generator.c.x, y:e1.generator.c.y});
+  gSet.push({x:e1.generator.p.x, y:e1.generator.p.y});
+  gSet.push({x:e2.generator.c.x, y:e2.generator.c.y});
+  gSet.push({x:e2.generator.p.x, y:e2.generator.p.y});
+  dx = gSet[0].x, dy = gSet[0].y;
+  gSet.forEach((p) => {
+    hypoTranslate(-dx, -dy, p);
+  })
+  dtheta = atan2(gSet[2].y, gSet[2].x);
+  gSet.forEach((p) => {
+    hypoRotate(-dtheta, p);
+  })
+  // このとき2つの円は共にx軸上に中心があり、円1は原点中心となっている。円2の中心はx軸正方向～。
+  let copyCircle1 = new hCircle(gSet[0], gSet[1]);
+  let copyCircle2 = new hCircle(gSet[2], gSet[3]);
+  let r1 = copyCircle1.r, r2 = copyCircle2.r, cx2 = copyCircle2.cx;
+  let isSet = [];
+  if(abs(cx2) < 0.0000001){ return []; }
+  let x = (cx2 * cx2 + r1 * r1 - r2 * r2) / (2 * cx2);
+  if(abs(r1 * r1 - x * x) < 0.0000001){
+    isSet.push({x:x, y:0});
+  }else if(r1 * r1 > x * x){
+    let diff = Math.sqrt(r1 * r1 - x * x);
+    isSet.push({x:x, y:diff}), isSet.push({x:x, y:-diff});
+  }else{
+    return [];
+  }
+  // 引き戻し。
+  isSet.forEach((is) => {
+    hypoMove(['r', dtheta, 't', dx, dy, 'end'], is);
+  })
+  return isSet;
 }
 
 function getMiddlePoint(p, q){
