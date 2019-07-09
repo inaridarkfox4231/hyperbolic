@@ -708,22 +708,14 @@ function getIntersectionLineAndLine(l1, l2){
   // さらにこのときのqx, qyについてqyが0でないなら回転も施す。こうして得られる変換を、
   // l1, l2双方のgeneratorに施して二つの直線を作る。と、l1側がx軸になるから計算しやすくなる。
   let dx, dy, dtheta;
-  let gSet = [];
   // generatorに相当する点を4つ。
-  gSet.push({x:l1.generator.p.x, y:l1.generator.p.y});
-  gSet.push({x:l1.generator.q.x, y:l1.generator.q.y});
-  gSet.push({x:l2.generator.p.x, y:l2.generator.p.y});
-  gSet.push({x:l2.generator.q.x, y:l2.generator.q.y});
+  let gSet = getCopyOfPoints([l1.generator.p, l1.generator.q, l2.generator.p, l2.generator.q]);
   dx = gSet[0].x, dy = gSet[0].y;
   // l1.generator.pが原点に来るように全体をtranslate.
-  gSet.forEach((p) => {
-    hypoTranslate(-dx, -dy, p);
-  })
+  hypoMovePoints(['t', -dx, -dy, 'end'], gSet);
   dtheta = atan2(gSet[1].y, gSet[1].x);
   // l1.generator.qがx軸上にくるように全体をrotate.
-  gSet.forEach((p) => {
-    hypoRotate(-dtheta, p);
-  })
+  hypoMovePoints(['r', -dtheta, 'end'], gSet);
   // このときcopyl1、つまり動かしたl1はx軸になっているので、それとcopyl2で議論すればいい。
   let copyLine1 = new hLine(gSet[0], gSet[1]);
   let copyLine2 = new hLine(gSet[2], gSet[3]);
@@ -747,55 +739,38 @@ function getIntersectionLineAndLine(l1, l2){
 function getIntersectionLineAndCircle(l, e){
   // 直線lと円eの交点を返す感じで。接する場合に1つしか出さないのをどうするかって感じ。
   let dx, dy, dtheta;
-  let gSet = [];
-  gSet.push({x:l.generator.p.x, y:l.generator.p.y});
-  gSet.push({x:l.generator.q.x, y:l.generator.q.y});
-  gSet.push({x:e.generator.c.x, y:e.generator.c.y});
-  gSet.push({x:e.generator.p.x, y:e.generator.p.y});
+  let gSet = getCopyOfPoints([l.generator.p, l.generator.q, e.generator.c, e.generator.p])
+  // まずは直線の方をx軸にする。
   dx = gSet[0].x, dy = gSet[0].y;
-  gSet.forEach((p) => {
-    hypoTranslate(-dx, -dy, p);
-  })
+  hypoMovePoints(['t', -dx, -dy, 'end'], gSet);
   dtheta = atan2(gSet[1].y, gSet[1].x);
-  gSet.forEach((p) => {
-    hypoRotate(-dtheta, p);
-  })
+  hypoMovePoints(['r', -dtheta, 'end'], gSet);
   // このとき直線の方はx軸になっている。円の方は普通に中に入る円。そこで・・
   let copyCircle = new hCircle(gSet[2], gSet[3]);
   // これの半径と中心の情報から交点を計算して引き戻す。
   let cx = copyCircle.cx, cy = copyCircle.cy, r = copyCircle.r;
   let isSet = [];
   if(abs(r - cy) < 0.0000001){
-    isSet.push({x:cx, y:0});
+    isSet.push({x:cx, y:0}); // 接する場合
   }else if(r > cy){
     let diff = Math.sqrt(r * r - cy * cy);
-    isSet.push({x:cx + diff, y:0}), isSet.push({x:cx - diff, y:0});
+    isSet.push({x:cx + diff, y:0}), isSet.push({x:cx - diff, y:0}); // 2点で交わる場合
   }else{
     return []; // 交点が見つからない時。
   }
   // 交点を引き戻す
-  isSet.forEach((is) => {
-    hypoMove(['r', dtheta, 't', dx, dy, 'end'], is);
-  })
+  hypoMovePoints(['r', dtheta, 't', dx, dy, 'end'], isSet);
   return isSet;
 }
 
 function getIntersectionCircleAndCircle(e1, e2){
   // 円と円の交点。e1の中心を原点においてからe2の中心をx軸において以下略。
   let dx, dy, dtheta;
-  let gSet = [];
-  gSet.push({x:e1.generator.c.x, y:e1.generator.c.y});
-  gSet.push({x:e1.generator.p.x, y:e1.generator.p.y});
-  gSet.push({x:e2.generator.c.x, y:e2.generator.c.y});
-  gSet.push({x:e2.generator.p.x, y:e2.generator.p.y});
+  let gSet = getCopyOfPoints([e1.generator.c, e1.generator.p, e2.generator.c, e2.generator.p]);
   dx = gSet[0].x, dy = gSet[0].y;
-  gSet.forEach((p) => {
-    hypoTranslate(-dx, -dy, p);
-  })
+  hypoMovePoints(['t', -dx, -dy, 'end'], gSet);
   dtheta = atan2(gSet[2].y, gSet[2].x);
-  gSet.forEach((p) => {
-    hypoRotate(-dtheta, p);
-  })
+  hypoMovePoints(['r', -dtheta, 'end'], gSet);
   // このとき2つの円は共にx軸上に中心があり、円1は原点中心となっている。円2の中心はx軸正方向～。
   let copyCircle1 = new hCircle(gSet[0], gSet[1]);
   let copyCircle2 = new hCircle(gSet[2], gSet[3]);
@@ -812,9 +787,7 @@ function getIntersectionCircleAndCircle(e1, e2){
     return [];
   }
   // 引き戻し。
-  isSet.forEach((is) => {
-    hypoMove(['r', dtheta, 't', dx, dy, 'end'], is);
-  })
+  hypoMovePoints(['r', dtheta, 't', dx, dy, 'end'], isSet);
   return isSet;
 }
 
@@ -822,16 +795,13 @@ function getMiddlePoint(p, q){
   // pとqの中点。pが原点でqがx軸上の場合は、qの絶対値をrとして中点を同じ軸上に取れる。
   // rから計算される然るべき値をq.xと同じ符号で返すだけ。
   // 一般の場合は、然るべく全体をtranslateするだけ。
-  let pSet = [{x:p.x, y:p.y}, {x:q.x, y:q.y}];
+  let gSet = getCopyOfPoints([p, q]);
   let dx, dy, dtheta;
   dx = pSet[0].x, dy = pSet[0].y;
-  pSet.forEach((p) => {
-    hypoTranslate(-dx, -dy, p);
-  })
+  hypoMovePoints(['t', -dx, -dy, 'end'], pSet);
   dtheta = atan2(pSet[1].y, pSet[1].x);
-  pSet.forEach((p) => {
-    hypoRotate(-dtheta, p);
-  })
+  hypoMovePoints(['r', -dtheta, 'end'], pSet);
+  // これでpが原点に来る。
   let r = pSet[1].x;
   let x = 200 * (Math.sqrt(200 + r) - Math.sqrt(200 - r)) / (Math.sqrt(200 + r) + Math.sqrt(200 - r));
   let mid = {x:x, y:0};
@@ -843,24 +813,13 @@ function getMiddlePoint(p, q){
 
 function getNormal(p, l){
   // pを通りlに垂直に交わる直線を取得する。
-  // ほんと同じこと何度もやってるからリファクタリングしないとやばい、とはいえまあ、とりあえず。
-  // いつものようにlのgeneratorをいじってlがx軸になるようにする。
-  // それによりpが動く、そこからさらに今回はpのx座標の分だけマイナスしてy軸上に持ってくる。
-  // そのときのy軸に相当する直線が（generator(0, ±100)とでもすればいい）求める垂線なので、
-  // あとはそれを引き戻すだけ～。
-  // ごめんなさい。duの計算が間違ってますね・・
-  // 原点をx軸負方向に動かす距離を、垂線に関わる点がそれによってy軸上に来る分だけ動かすので、
-  // そのEuclid距離を計算しないといけないのでした。ぎゃーす。
-  let pSet = [{x:p.x, y:p.y}, {x:l.generator.p.x, y:l.generator.p.y}, {x:l.generator.q.x, y:l.generator.q.y}];
+  let pSet = getCopyOfPoints([p, l.generator.p, l.generator.q]);
   let dx, dy, dtheta, du;
   dx = pSet[1].x, dy = pSet[1].y;
-  pSet.forEach((p) => {
-    hypoTranslate(-dx, -dy, p);
-  })
+  hypoMovePoints(['t', -dx, -dy, 'end'], pSet);
   dtheta = atan2(pSet[2].y, pSet[2].x);
-  pSet.forEach((p) => {
-    hypoRotate(-dtheta, p);
-  })
+  hypoMovePoints(['r', -dtheta, 'end'], pSet);
+  // これで直線がx軸に来る。このあと、x軸を変えずにpをy軸上にもってくる操作。（横方向の平行移動）
   // du = pSet[0].x; // ここがミスってる箇所。
   // 2次方程式の解・・これでいいのか？？一応小さい方を取った。
   let u = pSet[0].x, v = pSet[0].y;
@@ -870,11 +829,10 @@ function getNormal(p, l){
   }else{
     du = 0;
   }
-  pSet.forEach((p) => { hypoTranslate(-du, 0, p); });
+  hypoMovePoints(['t', -du, 0, 'end'], pSet);
+  // 直線については簡単に上と下の点をジェネレータにして生成する。
   let gp = {x:0, y:100}, gq = {x:0, y:-100};
-  let command = ['t', du, 0, 'r', dtheta, 't', dx, dy, 'end'];
-  hypoMove(command, gp);
-  hypoMove(command, gq);
+  hypoMovePoints(['t', du, 0, 'r', dtheta, 't', dx, dy, 'end'], [gp, gq]);
   return {p:gp, q:gq};
 }
 
@@ -947,44 +905,33 @@ function getMirrorCircleWithLine(c, e){
 function getTangentLineOfLine(p, l){
   // 点pを通り直線lに接する接線を引く。lをx軸にすれば簡単に計算できる。
   let dx, dy, dtheta;
-  let gSet = [];
-  gSet.push({x:p.x, y:p.y});
-  gSet.push({x:l.generator.p.x, y:l.generator.p.y});
-  gSet.push({x:l.generator.q.x, y:l.generator.q.y});
+  let gSet = getCopyOfPoints([p, l.generator.p, l.generator.q]);
   dx = gSet[1].x, dy = gSet[1].y;
-  gSet.forEach((p) => {
-    hypoTranslate(-dx, -dy, p);
-  })
+  hypoMovePoints(['t', -dx, -dy, 'end'], gSet);
   dtheta = atan2(gSet[2].y, gSet[2].x);
-  gSet.forEach((p) => {
-    hypoRotate(-dtheta, p);
-  })
+  hypoMovePoints(['r', -dtheta, 'end'], gSet);
   // このときgSet[0], つまりpの位置が・・yが0ならやることがないのよね。
   let x = gSet[0].x, y = gSet[0].y;
+  // 接する直線を表現する円の中心のy座標を計算している。
   let ySet = [];
   if(abs(y) < 0.0000001){ return undefined; }
   else{
     ySet.push(((x - 200) * (x - 200) + y * y) / (2 * y));
     ySet.push(((x + 200) * (x + 200) + y * y) / (2 * y));
   }
-  console.log(ySet);
-  let diffSet = []; // 端点からのずれ
-  diffSet.push(Math.sqrt(ySet[0] * y - (y * y) / 4));
-  diffSet.push(Math.sqrt(ySet[1] * y - (y * y) / 4));
-  let xSet = []; // pとは別のジェネレータのx座標。y座標はpのそれを半分にしたもの。
+  let xSet = [];
+  // pとは別のジェネレータのx座標。y座標はpのそれを半分にしたもの。
   // 先ほどの計算で円の方程式が出たので、それを元に計算している。
-  xSet.push(200 - diffSet[0]);
-  xSet.push(-200 + diffSet[1]);
+  xSet.push(200 - Math.sqrt(ySet[0] * y - (y * y) / 4));
+  xSet.push(-200 + Math.sqrt(ySet[1] * y - (y * y) / 4));
   let newGSet = [{x:x, y:y}, {x:xSet[0], y:y / 2}, {x:x, y:y}, {x:xSet[1], y:y / 2}];
-  console.log(newGSet);
-  newGSet.forEach((p) => {
-    hypoMove(['r', dtheta, 't', dx, dy, 'end'], p);
-  })
+  hypoMovePoints(['r', dtheta, 't', dx, dy, 'end'], newGSet);
   return newGSet;
 }
 
 function getTangentLineOfCircle(p, e){
   // 点pを通り円eに接する接線を引く。pを原点に、eの中心をx軸正方向におけば簡単に計算できる。
+
 }
 
 // -------------------------------- //
@@ -1001,4 +948,16 @@ function getHypoCircle(c, p){
   let centerFactor = 40000 * (40000 - norm_w) / (1600000000 - norm_c * norm_w);
   let radiusFactor = 40000 * (40000 - norm_c) / (1600000000 - norm_c * norm_w);
   return {cx:centerFactor * c.x, cy:centerFactor * c.y, r: radiusFactor * Math.sqrt(norm_w)};
+}
+
+function getCopyOfPoints(pointSet){
+  // pointSetに入ってるx, yパラメータを持つオブジェクトの成分からコピー配列を作るメソッド。
+  let pSet = [];
+  pointSet.forEach((p) => {pSet.push({x:p.x, y:p.y})});
+  return pSet;
+}
+
+function hypoMovePoints(command, pointSet){
+  // commandをpointSetの各成分に対して以下略
+  pointSet.forEach((p) => {hypoMove(command, p);})
 }
