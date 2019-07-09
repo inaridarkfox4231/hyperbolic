@@ -12,7 +12,7 @@ const FigureKind = 3; // 点と線の2種類という意味、これをidに加�
 let buttonPos = [];
 for(let i = 0; i < 10; i++){ buttonPos.push({x:200, y:40 * i - 200}); }
 for(let i = 0; i < 10; i++){ buttonPos.push({x:320, y:40 * i - 200}); }
-const MaxButtonId = 13;
+const MaxButtonId = 14;
 const DRAW_POINT = 0;
 const DRAW_LINE = 1;
 const DRAW_CIRCLE = 2;
@@ -26,6 +26,7 @@ const ALL_CLEAR = 9;
 const SYM_METRIC = 10;
 const TAN_LINE = 11;
 const TAN_CIRCLE = 12;
+const MIRROR = 13;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -106,6 +107,8 @@ class figureSet{
       case TAN_CIRCLE: // 円と1点に対して1点を通るその円の接線を引く
         this.clickMethod(x, y, [0, 2], [[2], [], [0]]);
         return;
+      case MIRROR: // 直線をクリックするとそれに関して全体が対称にコピーされる
+        this.mirroringMethod(x, y); return;
     }
   }
   clickMethod(x, y, activateFigureKindArray, actionPatternArray){
@@ -225,7 +228,7 @@ class figureSet{
         }else{
           hSet = getTangentLineOfCircle(fig2, fig1);
         }
-        console.log(hSet);
+        //console.log(hSet);
         if(hSet === undefined){ return; }
         for(let i = 0; i < hSet.length; i += 2){
           this.addLine(hSet[i], hSet[i + 1]);
@@ -322,6 +325,20 @@ class figureSet{
     let index = this.getIndexById(id);
     let p = this.figures[index];
     this.hyperbolicTranslate(-p.x, -p.y);
+  }
+  mirroringMethod(x, y){
+    // 指定した直線に関して全体を折り返す。問題は、作っている途中でthis.figuresの内容が
+    // 書き換わってしまうので、コピーから作るようにした方がいいかも。
+    // つまり、現時点でのそれ、のコピーを作って、それに対してaddSymmetricしたものを追加していく感じ。
+    let id = this.getClosestFigureId(x, y);
+    if(id < 0 || !(id % FigureKind === 1)){ return; }
+    let index = this.getIndexById(id);
+    let l = this.figures[index];
+    let copySet = getCopyFigures(this.figures); // 現時点での図形の集合のコピーを作る
+    // コピーのidは図形識別用に0, 1, 2にしてある（どうせ破棄するのでどうでもいい）
+    copySet.forEach((fig) => {
+      this.addSymmetricFigure(l, fig);
+    })
   }
   hyperbolicRotateMethod(){
     // 回転（中心の右と左、それぞれについて、上下にドラッグしてそのように回転させる。）
@@ -558,6 +575,7 @@ class hFigure{
   getDist(x, y){} // 距離計算メソッド
   move(seq){} // seqに応じた位置変更メソッド
   render(){} // 描画メソッド
+  getCopy(){} // 複製用メソッド
 }
 
 // 双曲平面上の点
@@ -586,6 +604,12 @@ class hPoint extends hFigure{
     // 対象が点の時、自分と比較して同じかどうかっていうbool関数
     if(abs(this.x - fig.x) + abs(this.y - fig.y) < 0.0000001){ return true; }
     return false;
+  }
+  getCopy(){
+    // 自分のコピーを作って返す。
+    let p = new hPoint(this.x, this.y);
+    p.id = 0; // 点。
+    return p;
   }
 }
 
@@ -650,6 +674,11 @@ class hLine extends hFigure{
       return abs(this.info.cx - fig.info.cx) + abs(this.info.cy - fig.info.cy) < 0.0000001;
     }
   }
+  getCopy(){
+    let l = new hLine(this.generator.p, this.generator.q);
+    l.id = 1; // 直線
+    return l;
+  }
 }
 
 // ロバチェフスキー円
@@ -689,6 +718,11 @@ class hCircle extends hFigure{
   isSame(fig){
     if(this.type !== fig.type){ return false; }
     return abs(this.cx - fig.cx) + abs(this.cy - fig.cy) + abs(this.r - fig.r) < 0.0000001;
+  }
+  getCopy(){
+    let e = new hCircle(this.generator.c, this.generator.p);
+    e.id = 2;
+    return e;
   }
 }
 
@@ -808,7 +842,7 @@ function getIntersectionLineAndCircle(l, e){
   }
   // 交点を引き戻す
   hypoMovePoints(['r', dtheta, 't', dx, dy, 'end'], isSet);
-  console.log(isSet);
+  //console.log(isSet);
   return isSet;
 }
 
@@ -1006,6 +1040,17 @@ function getTangentLineOfCircle(p, e){
   return newGSet;
 }
 
+function getCommonNormalOfLines(l1, l2){
+  // l1, l2の共通直交直線を取得する（条件下で一意的）
+  // 条件とは交わらないこと。接しているとつぶれてしまうので。交わっててもダメ。
+  // 作ってもいいけどあんま面白くなさそうだな・・式立てるのは簡単だけど。
+}
+
+function getCommonTangentOfCircles(e1, e2){
+  // e1, e2のすべての共通接線を得る感じの。
+  // e1, e2をx軸に接するようにぐりぐりいろいろtranslateしてy軸を得てそれをぐるぐる、みたいな感じですかね。
+}
+
 // -------------------------------- //
 // 円関連。中心の座標とどこか1点の情報から、そこが中心でその点を通る円の中心と半径を出す。
 function getHypoCircle(c, p){
@@ -1030,6 +1075,16 @@ function getCopyOfPoints(pointSet){
   let pSet = [];
   pointSet.forEach((p) => {pSet.push({x:p.x, y:p.y})});
   return pSet;
+}
+
+function getCopyFigures(figSet){
+  // figureの集合から複製集合を作る。idは、0, 1, 2を・・。
+  // id, -1でいいやって思ったけど、よく考えたら種類の識別用にid使ってるんだった・・・
+  let copyFigSet = [];
+  figSet.forEach((fig) => {
+    copyFigSet.push(fig.getCopy());
+  })
+  return copyFigSet;
 }
 
 function hypoMovePoints(command, pointSet){
