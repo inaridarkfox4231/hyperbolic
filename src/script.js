@@ -238,18 +238,12 @@ class figureSet{
     // (x, y)は位置、activeは赤くなる.
     // id値を設定して番号の更新が不要になるようにした。
     let newPoint = new hPoint(x, y);
+    if(this.hasThisFigure(newPoint)){ return; }
     newPoint.setId();
     this.figures.splice(this.maxPointIndex, 0, newPoint); // 点は必ず直線の前にしたい。
     this.maxPointIndex++;
     console.log("(" + x + ", " + y + ")");
     console.log('pointId = ' + newPoint.id);
-  }
-  removeFigure(id){
-    // 図形を排除する（点の場合はthis.maxPointIndexを減らす）
-    if(id < 0){ return; }
-    let index = this.getIndexById(id);
-    this.figures.splice(index, 1); // indexのところにあるオブジェクトを排除
-    if(id % FigureKind === 0){ this.maxPointIndex--; } // 点を排除した場合はその数を減らす
   }
   addLine(p, q){
     // pとqを結ぶ直線を引く。
@@ -257,6 +251,7 @@ class figureSet{
     // Euclid線分の場合は両端の座標(x1, y1, x2, y2)。
     // typeとinfoで、infoに先の情報を格納する。
     let newLine = new hLine(p, q);
+    if(this.hasThisFigure(newLine)){ return; }
     newLine.setId();
     this.figures.push(newLine);
     console.log('lineId = ' + newLine.id);
@@ -264,9 +259,24 @@ class figureSet{
   addCircle(c, p){
     // c中心、pを通る円を追加する。
     let newCircle = new hCircle(c, p);
+    if(this.hasThisFigure(newCircle)){ return; }
     newCircle.setId();
     this.figures.push(newCircle);
     console.log('circleId = ' + newCircle.id);
+  }
+  hasThisFigure(fig){
+    // figを既に持っている場合にtrueを返す。
+    for(let i = 0; i < this.figures.length; i++){
+      if(fig.isSame(this.figures[i])){ return true; }
+    }
+    return false;
+  }
+  removeFigure(id){
+    // 図形を排除する（点の場合はthis.maxPointIndexを減らす）
+    if(id < 0){ return; }
+    let index = this.getIndexById(id);
+    this.figures.splice(index, 1); // indexのところにあるオブジェクトを排除
+    if(id % FigureKind === 0){ this.maxPointIndex--; } // 点を排除した場合はその数を減らす
   }
   inActivate(){
     // activeをキャンセル. activeなのは高々1つ。
@@ -554,6 +564,7 @@ class hFigure{
 class hPoint extends hFigure{
   constructor(x, y){
     super();
+    this.type = 'point';
     this.x = x;
     this.y = y;
   }
@@ -569,6 +580,12 @@ class hPoint extends hFigure{
     // 点の描画
     if(this.active){ fill(0, calcAlpha()); }else{ fill(0); }
     ellipse(this.x, this.y, 10, 10);
+  }
+  isSame(fig){
+    if(this.type !== fig.type){ return false; }
+    // 対象が点の時、自分と比較して同じかどうかっていうbool関数
+    if(abs(this.x - fig.x) + abs(this.y - fig.y) < 0.0000001){ return true; }
+    return false;
   }
 }
 
@@ -624,12 +641,22 @@ class hLine extends hFigure{
       arc(data.cx, data.cy, data.diam, data.diam, data.theta, data.phi);
     }
   }
+  isSame(fig){
+    if(this.type !== fig.type){ return false; }
+    // 直線の相等は線と弧で場合分けする。
+    if(this.type === 'line'){
+      return abs(this.info.x0 * fig.info.y0 - this.info.y0 * fig.info.x0) < 0.0000001;
+    }else{
+      return abs(this.info.cx - fig.info.cx) + abs(this.info.cy - fig.info.cy) < 0.0000001;
+    }
+  }
 }
 
 // ロバチェフスキー円
 class hCircle extends hFigure{
   constructor(c, p){
     super();
+    this.type = 'circle';
     let circleData = getHypoCircle(c, p);
     this.cx = circleData.cx;
     this.cy = circleData.cy;
@@ -658,6 +685,10 @@ class hCircle extends hFigure{
   render(){
     if(this.active){ stroke(0, calcAlpha()); }else{ stroke(0); }
     arc(this.cx, this.cy, this.r * 2, this.r * 2, 0, 2 * Math.PI);
+  }
+  isSame(fig){
+    if(this.type !== fig.type){ return false; }
+    return abs(this.cx - fig.cx) + abs(this.cy - fig.cy) + abs(this.r - fig.r) < 0.0000001;
   }
 }
 
@@ -767,9 +798,9 @@ function getIntersectionLineAndCircle(l, e){
   // これの半径と中心の情報から交点を計算して引き戻す。
   let cx = copyCircle.cx, cy = copyCircle.cy, r = copyCircle.r;
   let isSet = [];
-  if(abs(r - cy) < 0.0000001){
+  if(abs(r - abs(cy)) < 0.0000001){ // ここr-cyになってた・・cyじゃまずいよねぇ。絶対値にしないと。
     isSet.push({x:cx, y:0}); // 接する場合
-  }else if(r > cy){
+  }else if(r > abs(cy)){
     let diff = Math.sqrt(r * r - cy * cy);
     isSet.push({x:cx + diff, y:0}), isSet.push({x:cx - diff, y:0}); // 2点で交わる場合
   }else{
@@ -777,6 +808,7 @@ function getIntersectionLineAndCircle(l, e){
   }
   // 交点を引き戻す
   hypoMovePoints(['r', dtheta, 't', dx, dy, 'end'], isSet);
+  console.log(isSet);
   return isSet;
 }
 
@@ -812,7 +844,7 @@ function getMiddlePoint(p, q){
   // pとqの中点。pが原点でqがx軸上の場合は、qの絶対値をrとして中点を同じ軸上に取れる。
   // rから計算される然るべき値をq.xと同じ符号で返すだけ。
   // 一般の場合は、然るべく全体をtranslateするだけ。
-  let gSet = getCopyOfPoints([p, q]);
+  let pSet = getCopyOfPoints([p, q]);
   let dx, dy, dtheta;
   dx = pSet[0].x, dy = pSet[0].y;
   hypoMovePoints(['t', -dx, -dy, 'end'], pSet);
@@ -948,7 +980,7 @@ function getTangentLineOfLine(p, l){
 
 function getTangentLineOfCircle(p, e){
   // 点pを通り円eに接する接線を引く。pを原点に、eの中心をx軸正方向におけば簡単に計算できる。
-  // 接点も欲しいので改良しましょう。newGSetの1と3が接点・・あ、このままでいいやね。あっちを改良しよ。ん？
+  // 接点も欲しいので改良しましょう。newGSetの1と3が接点・・あ、このままでいいやね。あっちを改良しよ。
   let gSet = getCopyOfPoints([p, e.generator.c, e.generator.p]);
   let dx, dy, dtheta;
   dx = gSet[0].x, dy = gSet[0].y;
@@ -958,7 +990,6 @@ function getTangentLineOfCircle(p, e){
   // この時点で、gSet[0]であるpが原点、円がx軸正方向にある。そこで・・
   let copyCircle = new hCircle(gSet[1], gSet[2]);
   let cx = copyCircle.cx, r = copyCircle.r;
-  console.log(cx + ", " + r);
   let newGSet = [];
   if(abs(cx - r) < 0.0000001){
     newGSet.push({x:0, y:100});
@@ -990,6 +1021,9 @@ function getHypoCircle(c, p){
   let radiusFactor = 40000 * (40000 - norm_c) / (1600000000 - norm_c * norm_w);
   return {cx:centerFactor * c.x, cy:centerFactor * c.y, r: radiusFactor * Math.sqrt(norm_w)};
 }
+
+// ----------------------- //
+// utility.
 
 function getCopyOfPoints(pointSet){
   // pointSetに入ってるx, yパラメータを持つオブジェクトの成分からコピー配列を作るメソッド。
