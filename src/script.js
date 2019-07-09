@@ -12,7 +12,7 @@ const FigureKind = 3; // 点と線の2種類という意味、これをidに加�
 let buttonPos = [];
 for(let i = 0; i < 10; i++){ buttonPos.push({x:200, y:40 * i - 200}); }
 for(let i = 0; i < 10; i++){ buttonPos.push({x:320, y:40 * i - 200}); }
-const MaxButtonId = 11;
+const MaxButtonId = 13;
 const DRAW_POINT = 0;
 const DRAW_LINE = 1;
 const DRAW_CIRCLE = 2;
@@ -24,6 +24,8 @@ const MIDDLE_POINT = 7;
 const DRAW_NORMAL = 8;
 const ALL_CLEAR = 9;
 const SYM_METRIC = 10;
+const TAN_LINE = 11;
+const TAN_CIRCLE = 12;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
@@ -98,6 +100,11 @@ class figureSet{
         this.allClear(); return;
       case SYM_METRIC: // 対称移動
         this.clickMethod(x, y, [0, 1], [[0, 1, 2], [0, 1, 2], []]); return;
+      case TAN_LINE: // 直線と1点に対して1点を通るその直線の2接線を引く
+        this.clickMethod(x, y, [0, 1], [[1], [0], []]);
+        return;
+      case TAN_CIRCLE: // 円と1点に対して1点を通るその円の接線を引く
+        return;
     }
   }
   clickMethod(x, y, activateFigureKindArray, actionPatternArray){
@@ -140,6 +147,8 @@ class figureSet{
   }
   nonActiveClickMethod(fig1, fig2){
     // fig1がactiveな方。いろいろ。
+    let kind1 = fig1.id % FigureKind;
+    let kind2 = fig2.id % FigureKind;
     switch(this.drawMode){
       case DRAW_LINE:
         // 線を引く
@@ -157,8 +166,8 @@ class figureSet{
         return;
       case INTER_SECTION:
         // 2直線の交点を追加
-        let kind1 = fig1.id % FigureKind;
-        let kind2 = fig2.id % FigureKind;
+        //let kind1 = fig1.id % FigureKind;
+        //let kind2 = fig2.id % FigureKind;
         if(kind1 === 1 && kind2 === 1){
           let is = getIntersectionLineAndLine(fig1, fig2);
           if(is === undefined){ return; }
@@ -187,7 +196,7 @@ class figureSet{
         // 垂線を追加
         let normal;
         // どっちが点なのか判断している。
-        if(fig1.id % FigureKind === 0){ normal = getNormal(fig1, fig2); }
+        if(kind1 === 0){ normal = getNormal(fig1, fig2); }
         else{ normal = getNormal(fig2, fig1); }
         this.addLine(normal.p, normal.q);
         return;
@@ -195,6 +204,17 @@ class figureSet{
         // fig1に関してfig2と対称なオブジェクトを追加
         this.addSymmetricFigure(fig1, fig2);
         return;
+      case TAN_LINE:
+        // 点をクリックしてから直線、またはその逆。
+        let gSet = [];
+        if(kind1 === 0){
+          gSet = getTangentLineOfLine(fig1, fig2);
+        }else{
+          gSet = getTangentLineOfLine(fig2, fig1);
+        }
+        if(gSet === undefined){ return; }
+        this.addLine(gSet[0], gSet[1]);
+        this.addLine(gSet[2], gSet[3]);
     }
   }
   addPoint(x, y){
@@ -221,7 +241,6 @@ class figureSet{
     // typeとinfoで、infoに先の情報を格納する。
     let newLine = new hLine(p, q);
     newLine.setId();
-    //this.maxLineId += 2;
     this.figures.push(newLine);
     console.log('lineId = ' + newLine.id);
   }
@@ -923,6 +942,49 @@ function getMirrorCircleWithLine(c, e){
   let newgc = getMirrorPointWithLine(c, gc);
   let newgp = getMirrorPointWithLine(c, gp);
   return {c:newgc, p:newgp};
+}
+
+function getTangentLineOfLine(p, l){
+  // 点pを通り直線lに接する接線を引く。lをx軸にすれば簡単に計算できる。
+  let dx, dy, dtheta;
+  let gSet = [];
+  gSet.push({x:p.x, y:p.y});
+  gSet.push({x:l.generator.p.x, y:l.generator.p.y});
+  gSet.push({x:l.generator.q.x, y:l.generator.q.y});
+  dx = gSet[1].x, dy = gSet[1].y;
+  gSet.forEach((p) => {
+    hypoTranslate(-dx, -dy, p);
+  })
+  dtheta = atan2(gSet[2].y, gSet[2].x);
+  gSet.forEach((p) => {
+    hypoRotate(-dtheta, p);
+  })
+  // このときgSet[0], つまりpの位置が・・yが0ならやることがないのよね。
+  let x = gSet[0].x, y = gSet[0].y;
+  let ySet = [];
+  if(abs(y) < 0.0000001){ return undefined; }
+  else{
+    ySet.push(((x - 200) * (x - 200) + y * y) / (2 * y));
+    ySet.push(((x + 200) * (x + 200) + y * y) / (2 * y));
+  }
+  console.log(ySet);
+  let diffSet = []; // 端点からのずれ
+  diffSet.push(Math.sqrt(ySet[0] * y - (y * y) / 4));
+  diffSet.push(Math.sqrt(ySet[1] * y - (y * y) / 4));
+  let xSet = []; // pとは別のジェネレータのx座標。y座標はpのそれを半分にしたもの。
+  // 先ほどの計算で円の方程式が出たので、それを元に計算している。
+  xSet.push(200 - diffSet[0]);
+  xSet.push(-200 + diffSet[1]);
+  let newGSet = [{x:x, y:y}, {x:xSet[0], y:y / 2}, {x:x, y:y}, {x:xSet[1], y:y / 2}];
+  console.log(newGSet);
+  newGSet.forEach((p) => {
+    hypoMove(['r', dtheta, 't', dx, dy, 'end'], p);
+  })
+  return newGSet;
+}
+
+function getTangentLineOfCircle(p, e){
+  // 点pを通り円eに接する接線を引く。pを原点に、eの中心をx軸正方向におけば簡単に計算できる。
 }
 
 // -------------------------------- //
