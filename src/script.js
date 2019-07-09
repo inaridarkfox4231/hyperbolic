@@ -104,6 +104,7 @@ class figureSet{
         this.clickMethod(x, y, [0, 1], [[1], [0], []]);
         return;
       case TAN_CIRCLE: // 円と1点に対して1点を通るその円の接線を引く
+        this.clickMethod(x, y, [0, 2], [[2], [], [0]]);
         return;
     }
   }
@@ -215,6 +216,22 @@ class figureSet{
         if(gSet === undefined){ return; }
         this.addLine(gSet[0], gSet[1]);
         this.addLine(gSet[2], gSet[3]);
+        return;
+      case TAN_CIRCLE:
+        // 点をクリックしてから円、またはその逆。
+        let hSet = [];
+        if(kind1 === 0){
+          hSet = getTangentLineOfCircle(fig1, fig2);
+        }else{
+          hSet = getTangentLineOfCircle(fig2, fig1);
+        }
+        console.log(hSet);
+        if(hSet === undefined){ return; }
+        for(let i = 0; i < hSet.length; i += 2){
+          this.addLine(hSet[i], hSet[i + 1]);
+          this.addPoint(hSet[i + 1].x, hSet[i + 1].y);
+        }
+        return;
     }
   }
   addPoint(x, y){
@@ -931,7 +948,31 @@ function getTangentLineOfLine(p, l){
 
 function getTangentLineOfCircle(p, e){
   // 点pを通り円eに接する接線を引く。pを原点に、eの中心をx軸正方向におけば簡単に計算できる。
-
+  // 接点も欲しいので改良しましょう。newGSetの1と3が接点・・あ、このままでいいやね。あっちを改良しよ。ん？
+  let gSet = getCopyOfPoints([p, e.generator.c, e.generator.p]);
+  let dx, dy, dtheta;
+  dx = gSet[0].x, dy = gSet[0].y;
+  hypoMovePoints(['t', -dx, -dy, 'end'], gSet);
+  dtheta = atan2(gSet[1].y, gSet[1].x);
+  hypoMovePoints(['r', -dtheta, 'end'], gSet);
+  // この時点で、gSet[0]であるpが原点、円がx軸正方向にある。そこで・・
+  let copyCircle = new hCircle(gSet[1], gSet[2]);
+  let cx = copyCircle.cx, r = copyCircle.r;
+  console.log(cx + ", " + r);
+  let newGSet = [];
+  if(abs(cx - r) < 0.0000001){
+    newGSet.push({x:0, y:100});
+    newGSet.push({x:0, y:0});
+  }else if(cx > r){
+    newGSet.push({x:0, y:0});
+    newGSet.push({x: cx - ((r * r) / cx), y: Math.sqrt(r * r - Math.pow(r, 4) / Math.pow(cx, 2))});
+    newGSet.push({x:0, y:0});
+    newGSet.push({x: cx - ((r * r) / cx), y: -Math.sqrt(r * r - Math.pow(r, 4) / Math.pow(cx, 2))});
+  }else{
+    return undefined;
+  }
+  hypoMovePoints(['r', dtheta, 't', dx, dy, 'end'], newGSet);
+  return newGSet;
 }
 
 // -------------------------------- //
