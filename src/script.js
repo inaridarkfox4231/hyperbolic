@@ -35,10 +35,10 @@ const MIRROR = 13;
 
 function preload(){
   for(let i = 0; i < MaxButtonId; i++){
-    button_off.push(loadImage("./assets/fig_" + i + "_off.png"));
-    button_on.push(loadImage("./assets/fig_" + i + "_on.png"));
-    //button_off.push(loadImage("https://inaridarkfox4231.github.io/hyperbolic_config/fig_" + i + "_off.png"));
-    //button_on.push(loadImage("https://inaridarkfox4231.github.io/hyperbolic_config/fig_" + i + "_on.png"));
+    //button_off.push(loadImage("./assets/fig_" + i + "_off.png"));
+    //button_on.push(loadImage("./assets/fig_" + i + "_on.png"));
+    button_off.push(loadImage("https://inaridarkfox4231.github.io/hyperbolic_config/fig_" + i + "_off.png"));
+    button_on.push(loadImage("https://inaridarkfox4231.github.io/hyperbolic_config/fig_" + i + "_on.png"));
   }
 }
 
